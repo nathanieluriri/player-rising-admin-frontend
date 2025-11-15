@@ -28,14 +28,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem("access_token");
-      if (token) {
-        const response = await adminApi.getMe();
-        setAdmin(response.data);
+      if (!token) {
+        setIsLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error("Auth check failed:", error);
+      
+      const response = await adminApi.getMe();
+      if (response?.data) {
+        setAdmin(response.data);
+      } else {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+      }
+    } catch (error: any) {
+      console.error("Auth check failed:", error?.message || error);
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      setAdmin(null);
     } finally {
       setIsLoading(false);
     }

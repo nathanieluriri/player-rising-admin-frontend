@@ -42,6 +42,7 @@ export default function Editor() {
 
   // Load existing article
   useEffect(() => {
+    console.log("Editor mounted:", { isNew, articleId });
     if (!isNew && articleId) {
       loadArticle(articleId);
     } else {
@@ -51,8 +52,11 @@ export default function Editor() {
 
   const loadArticle = async (id: string) => {
     try {
+      console.log("Loading article:", id);
       const response = await blogApi.getById(id);
       const blog = response.data;
+      
+      console.log("Article loaded:", blog);
       
       setTitle(blog.title);
       setAuthorName(blog.author.name);
@@ -65,8 +69,9 @@ export default function Editor() {
       setFeatureImageUrl(blog.featureImage.url);
       setStatus(blog.state);
       setBlogBlocks(blog.currentPageBody);
-    } catch (error) {
-      toast.error("Failed to load article");
+    } catch (error: any) {
+      console.error("Failed to load article:", error);
+      toast.error(error?.response?.data?.detail || "Failed to load article");
     } finally {
       setIsInitialLoad(false);
     }
