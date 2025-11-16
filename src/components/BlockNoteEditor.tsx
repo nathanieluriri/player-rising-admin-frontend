@@ -24,7 +24,9 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
   };
 
   const editor = useCreateBlockNote({
-    initialContent: initialContent ? apiToBlockNote(initialContent) : undefined,
+    initialContent: initialContent && initialContent.length > 0 
+      ? apiToBlockNote(initialContent) 
+      : undefined,
     uploadFile: handleUpload,
   });
 

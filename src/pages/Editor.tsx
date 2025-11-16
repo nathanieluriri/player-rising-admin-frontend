@@ -3,25 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useDebounce } from "react-use";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { BlockNoteEditor } from "@/components/BlockNoteEditor";
-import { ImageUploader } from "@/components/ImageUploader";
+import { BlogSettingsDialog, CATEGORIES } from "@/components/BlogSettingsDialog";
 import { blogApi } from "@/lib/api";
 import { blockNoteToApi } from "@/lib/translator";
 import type { APIBlock } from "@/lib/translator";
-import { ArrowLeft, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-
-const CATEGORIES = [
-  { name: "Juventus", slug: "juventus" },
-  { name: "Manchester United", slug: "manchester-united" },
-  { name: "Manchester City", slug: "manchester-city" },
-  { name: "Arsenal", slug: "arsenal" },
-  { name: "Chelsea", slug: "chelsea" },
-  { name: "Liverpool", slug: "liverpool" },
-];
 
 export default function Editor() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +28,40 @@ export default function Editor() {
   const [blogBlocks, setBlogBlocks] = useState<any[]>([]);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [hasLoadedContent, setHasLoadedContent] = useState(false);
+
+  // Local storage key for draft
+  const getLocalStorageKey = () => `blog_draft_${articleId || 'new'}`;
+
+  // Save to localStorage
+  const saveToLocalStorage = useCallback(() => {
+    const data = {
+      title,
+      authorName,
+      authorAvatar,
+      authorAffiliation,
+      category,
+      featureImageUrl,
+      status,
+      blogBlocks,
+      lastSaved: Date.now(),
+    };
+    localStorage.setItem(getLocalStorageKey(), JSON.stringify(data));
+  }, [title, authorName, authorAvatar, authorAffiliation, category, featureImageUrl, status, blogBlocks, articleId]);
+
+  // Load from localStorage
+  const loadFromLocalStorage = () => {
+    try {
+      const data = localStorage.getItem(getLocalStorageKey());
+      if (data) {
+        const parsed = JSON.parse(data);
+        return parsed;
+      }
+    } catch (error) {
+      console.error("Failed to load from localStorage:", error);
+    }
+    return null;
+  };
 
   // Load existing article
   useEffect(() => {
@@ -46,6 +69,19 @@ export default function Editor() {
     if (!isNew && articleId) {
       loadArticle(articleId);
     } else {
+      // Check localStorage for new articles
+      const localData = loadFromLocalStorage();
+      if (localData) {
+        setTitle(localData.title || "");
+        setAuthorName(localData.authorName || "");
+        setAuthorAvatar(localData.authorAvatar || "");
+        setAuthorAffiliation(localData.authorAffiliation || "");
+        setCategory(localData.category || CATEGORIES[0]);
+        setFeatureImageUrl(localData.featureImageUrl || "");
+        setStatus(localData.status || "draft");
+        setBlogBlocks(localData.blogBlocks || []);
+        setHasLoadedContent(true);
+      }
       setIsInitialLoad(false);
     }
   }, [articleId, isNew]);
@@ -53,11 +89,17 @@ export default function Editor() {
   const loadArticle = async (id: string) => {
     try {
       console.log("Loading article:", id);
+      
+      // Check localStorage first
+      const localData = loadFromLocalStorage();
+      const localTimestamp = localData?.lastSaved || 0;
+      
       const response = await blogApi.getById(id);
       const blog = response.data;
       
       console.log("Article loaded:", blog);
       
+      // Use server data (it's the source of truth for existing articles)
       setTitle(blog.title);
       setAuthorName(blog.author.name);
       setAuthorAvatar(blog.author.avatarUrl || "");
@@ -68,10 +110,30 @@ export default function Editor() {
       
       setFeatureImageUrl(blog.featureImage.url);
       setStatus(blog.state);
-      setBlogBlocks(blog.currentPageBody);
+      setBlogBlocks(blog.currentPageBody || []);
+      setHasLoadedContent(true);
+      
+      // Clear old localStorage data
+      localStorage.removeItem(getLocalStorageKey());
+      
     } catch (error: any) {
       console.error("Failed to load article:", error);
       toast.error(error?.response?.data?.detail || "Failed to load article");
+      
+      // Try to load from localStorage as fallback
+      const localData = loadFromLocalStorage();
+      if (localData) {
+        setTitle(localData.title || "");
+        setAuthorName(localData.authorName || "");
+        setAuthorAvatar(localData.authorAvatar || "");
+        setAuthorAffiliation(localData.authorAffiliation || "");
+        setCategory(localData.category || CATEGORIES[0]);
+        setFeatureImageUrl(localData.featureImageUrl || "");
+        setStatus(localData.status || "draft");
+        setBlogBlocks(localData.blogBlocks || []);
+        setHasLoadedContent(true);
+        toast.info("Loaded from local draft");
+      }
     } finally {
       setIsInitialLoad(false);
     }
@@ -80,6 +142,9 @@ export default function Editor() {
   const saveArticle = useCallback(async () => {
     if (!title.trim()) return;
 
+    // Always save to localStorage first
+    saveToLocalStorage();
+    
     setSaveStatus("saving");
 
     const apiCompatibleBody: APIBlock[] = blockNoteToApi(blogBlocks);
@@ -114,12 +179,26 @@ export default function Editor() {
       }
       
       setSaveStatus("saved");
+      // Clear localStorage after successful save
+      localStorage.removeItem(getLocalStorageKey());
     } catch (error: any) {
       console.error("Save failed:", error);
       setSaveStatus("error");
-      toast.error(error.response?.data?.detail || "Failed to save");
+      
+      // Network error
+      if (!error.response) {
+        toast.error("Network error - saved locally", {
+          description: "Your changes are saved locally and will sync when connection is restored",
+          icon: <AlertCircle className="h-4 w-4" />,
+        });
+      } else {
+        toast.error(error.response?.data?.detail || "Failed to save", {
+          description: "Your changes are saved locally",
+          icon: <AlertCircle className="h-4 w-4" />,
+        });
+      }
     }
-  }, [articleId, title, authorName, authorAvatar, authorAffiliation, category, featureImageUrl, status, blogBlocks, navigate]);
+  }, [articleId, title, authorName, authorAvatar, authorAffiliation, category, featureImageUrl, status, blogBlocks, navigate, saveToLocalStorage]);
 
   // Auto-save with debounce
   useDebounce(
@@ -173,6 +252,18 @@ export default function Editor() {
           </div>
 
           <div className="flex items-center gap-3">
+            <BlogSettingsDialog
+              authorName={authorName}
+              setAuthorName={setAuthorName}
+              authorAvatar={authorAvatar}
+              setAuthorAvatar={setAuthorAvatar}
+              authorAffiliation={authorAffiliation}
+              setAuthorAffiliation={setAuthorAffiliation}
+              category={category}
+              setCategory={setCategory}
+              featureImageUrl={featureImageUrl}
+              setFeatureImageUrl={setFeatureImageUrl}
+            />
             <Badge variant={status === "published" ? "default" : "secondary"}>
               {status}
             </Badge>
@@ -189,88 +280,29 @@ export default function Editor() {
 
       {/* Editor Content */}
       <main className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Metadata Form */}
-        <div className="space-y-6 mb-8">
-          <div className="space-y-2">
-            <Input
-              placeholder="Article title..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="text-4xl font-bold border-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-6 border-y border-border">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Author Name</Label>
-                <Input
-                  value={authorName}
-                  onChange={(e) => setAuthorName(e.target.value)}
-                  placeholder="John Doe"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Author Affiliation</Label>
-                <Input
-                  value={authorAffiliation}
-                  onChange={(e) => setAuthorAffiliation(e.target.value)}
-                  placeholder="Sports Journalist"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select
-                  value={category.slug}
-                  onValueChange={(slug) => {
-                    const cat = CATEGORIES.find(c => c.slug === slug);
-                    if (cat) setCategory(cat);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat.slug} value={cat.slug}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Author Avatar</Label>
-                <ImageUploader
-                  currentUrl={authorAvatar}
-                  onChange={setAuthorAvatar}
-                  label="Upload Avatar"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Feature Image</Label>
-                <ImageUploader
-                  currentUrl={featureImageUrl}
-                  onChange={setFeatureImageUrl}
-                  label="Upload Feature Image"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* BlockNote Editor */}
-        <div className="prose prose-lg max-w-none">
-          <BlockNoteEditor
-            initialContent={blogBlocks}
-            onChange={setBlogBlocks}
+        <div className="space-y-6">
+          {/* Title */}
+          <Input
+            placeholder="Article title..."
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="text-4xl font-bold border-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
           />
+
+          {/* BlockNote Editor */}
+          <div className="prose prose-lg max-w-none">
+            {hasLoadedContent || isNew ? (
+              <BlockNoteEditor
+                key={articleId || 'new'}
+                initialContent={blogBlocks}
+                onChange={setBlogBlocks}
+              />
+            ) : (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
