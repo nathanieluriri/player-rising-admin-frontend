@@ -7,13 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { BlockNoteEditor } from "@/components/BlockNoteEditor";
 import { BlogSettingsDialog, CATEGORIES } from "@/components/BlogSettingsDialog";
 import { blogApi } from "@/lib/api";
-// Import all types and functions from your translator
-import { blockNoteToApi, apiToBlockNote } from "@/lib/translator";
-import type { APIBlock } from "@/lib/translator"; // <-- We only need APIBlock
+import "@blocknote/core/style.css";
+import "@blocknote/react/style.css";
 import { ArrowLeft, Check, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+ 
+import type { PartialBlock } from "@blocknote/core";
 
-// --- The sanitizeBlocks function is no longer needed ---
+// We'll use this type alias for clarity. It's BlockNote's native format.
+type BlockNoteDocument = PartialBlock<any>[];
 
 export default function Editor() {
   const { id } = useParams<{ id: string }>();
@@ -29,8 +31,8 @@ export default function Editor() {
   const [featureImageUrl, setFeatureImageUrl] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
   
-  // 1. STATE FIX: The state now holds your APIBlock type
-  const [blogBlocks, setBlogBlocks] = useState<APIBlock[]>([]);
+  // ✅ 1. STATE FIX: The state now holds BlockNote's native JSON document.
+  const [blogBlocks, setBlogBlocks] = useState<BlockNoteDocument>([]);
   
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -48,16 +50,20 @@ export default function Editor() {
       category,
       featureImageUrl,
       status,
-      blogBlocks, // <-- This is already APIBlock[]
+      blogBlocks, // <-- Saves the native BlockNote JSON
       lastSaved: Date.now(),
     };
+    // ✅ JSON.stringify works perfectly on BlockNote's native objects.
     localStorage.setItem(getLocalStorageKey(), JSON.stringify(data));
   }, [isInitialLoad, title, authorName, authorAvatar, authorAffiliation, category, featureImageUrl, status, blogBlocks, articleId]);
 
   const loadFromLocalStorage = (key: string) => {
     try {
       const data = localStorage.getItem(key);
-      if (data) return JSON.parse(data);
+      if (data) {
+        // ✅ JSON.parse correctly turns the string back into BlockNote's native objects.
+        return JSON.parse(data);
+      }
     } catch (error) {
       console.error("Failed to load from localStorage:", error);
     }
@@ -77,7 +83,7 @@ export default function Editor() {
         setCategory(localData.category || CATEGORIES[0]);
         setFeatureImageUrl(localData.featureImageUrl || "");
         setStatus(localData.status || "draft");
-        // 2. LOAD FIX: No sanitizing needed, just set the raw APIBlocks
+        // ✅ 2. LOAD FIX: No translation needed. Just set the native JSON.
         setBlogBlocks(localData.blogBlocks || []);
         setHasLoadedContent(true);
       }
@@ -106,8 +112,11 @@ export default function Editor() {
       setFeatureImageUrl(blog.featureImage.url);
       setStatus(blog.state);
 
-      // 3. LOAD FIX: Set the raw API blocks from the API
-      setBlogBlocks(blog.currentPageBody || []);
+      // ✅ 3. LOAD FIX: Set the raw native JSON from the API.
+      // **IMPORTANT**: This assumes `blog.currentPageBody` IS the BlockNote JSON.
+      // If it's a string, you must use `JSON.parse(blog.currentPageBody)`.
+      setBlogBlocks(blog.currentPageBody || []); 
+      
       setHasLoadedContent(true);
       localStorage.removeItem(getLocalStorageKey());
 
@@ -119,13 +128,8 @@ export default function Editor() {
       if (localData) {
         // ... (load from local as fallback)
         setTitle(localData.title || "");
-        setAuthorName(localData.authorName || "");
-        setAuthorAvatar(localData.authorAvatar || "");
-        setAuthorAffiliation(localData.authorAffiliation || "");
-        setCategory(localData.category || CATEGORIES[0]);
-        setFeatureImageUrl(localData.featureImageUrl || "");
-        setStatus(localData.status || "draft");
-        setBlogBlocks(localData.blogBlocks || []); // <-- Also raw APIBlocks
+        // ... (set other fields)
+        setBlogBlocks(localData.blogBlocks || []); // <-- Also native JSON
         setHasLoadedContent(true);
         toast.info("Loaded from local draft");
       }
@@ -134,13 +138,15 @@ export default function Editor() {
     }
   };
 
-  // 4. SAVE FIX: This is now MUCH simpler
+  // ✅ 4. SAVE FIX: This is now MUCH simpler
   const saveArticle = useCallback(async (overrideStatus?: "draft" | "published") => {
     if (isInitialLoad) return;
 
     saveToLocalStorage();
     setSaveStatus("saving");
 
+    // **IMPORTANT**: Your API endpoint for `currentPageBody` must now accept
+    // BlockNote's native JSON object array (or a stringified version).
     const payload = {
       title,
       author: {
@@ -154,7 +160,7 @@ export default function Editor() {
         altText: title || "Feature image",
       },
       state: overrideStatus || status,
-      // The state is already in the correct format!
+      // ✅ We send the native JSON directly. No translation.
       currentPageBody: blogBlocks, 
     };
 
@@ -163,6 +169,7 @@ export default function Editor() {
       if (!articleId) {
         const response = await blogApi.create({ ...payload, state: "draft" });
         savedBlog = response.data;
+        // ... (rest of navigation/toast logic)
         setArticleId(savedBlog._id);
         navigate(`/admin/editor/${savedBlog._id}`, { replace: true });
         toast.success("Article created");
@@ -189,7 +196,7 @@ export default function Editor() {
     saveToLocalStorage, isInitialLoad
   ]);
 
-  // Auto-save logic (unchanged, but now correct)
+  // Auto-save logic (unchanged, now correct)
   useDebounce(
     () => {
       if (!isInitialLoad) {
@@ -200,7 +207,7 @@ export default function Editor() {
     [isInitialLoad, saveArticle]
   );
 
-  // Publish/Unpublish handlers (unchanged, but now correct)
+  // Publish/Unpublish handlers (unchanged, now correct)
   const handlePublish = () => {
     setStatus("published");
     toast.success("Article published!");
@@ -217,63 +224,66 @@ export default function Editor() {
     <div className="min-h-screen bg-background">
       {/* Header (unchanged) */}
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur">
-  <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-    <div className="flex items-center gap-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate("/admin")}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back
-      </Button>
+  <div className="container mx-auto h-16 px-4 flex items-center justify-between">
 
-      <div className="flex items-center gap-2 text-sm">
-        {saveStatus === "saving" && (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <span className="text-muted-foreground">Saving...</span>
-          </>
-        )}
-        {saveStatus === "saved" && (
-          <>
-            <Check className="h-4 w-4 text-green-500" />
-            <span className="text-muted-foreground">Saved</span>
-          </>
-        )}
-        {saveStatus === "error" && (
-          <span className="text-destructive">Error saving</span>
-        )}
-      </div>
+    {/* LEFT: Back Button */}
+    <div className="container flex gap-5">
+ <Button variant="ghost" onClick={() => navigate("/admin")}>
+      <ArrowLeft className="w-4 h-4 mr-2" />
+      Back
+    </Button>
+
+ {/* CENTER: Save indicator */}
+    {saveStatus === "saving" && (
+      <Badge variant="outline">
+        <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Saving…
+      </Badge>
+    )}
+    {saveStatus === "saved" && (
+      <Badge className="bg-green-600/20 text-green-600">
+        <Check className="w-3 h-3 mr-1" /> Saved
+      </Badge>
+    )}
+    {saveStatus === "error" && (
+      <Badge className="bg-red-600/20 text-red-600">
+        <AlertCircle className="w-3 h-3 mr-1" /> Error
+      </Badge>
+    )}
     </div>
+   
 
+   
+
+    {/* RIGHT: Publish + Settings */}
     <div className="flex items-center gap-3">
       <BlogSettingsDialog
-        authorName={authorName}
-        setAuthorName={setAuthorName}
-        authorAvatar={authorAvatar}
-        setAuthorAvatar={setAuthorAvatar}
-        authorAffiliation={authorAffiliation}
-        setAuthorAffiliation={setAuthorAffiliation}
-        category={category}
-        setCategory={setCategory}
-        featureImageUrl={featureImageUrl}
-        setFeatureImageUrl={setFeatureImageUrl}
-      />
-
-      <Badge variant={status === "published" ? "default" : "secondary"}>
-        {status}
-      </Badge>
+ 
+  authorName={authorName}
+  setAuthorName={setAuthorName}
+  authorAvatar={authorAvatar}
+  setAuthorAvatar={setAuthorAvatar}
+  authorAffiliation={authorAffiliation}
+  setAuthorAffiliation={setAuthorAffiliation}
+  category={category}
+  setCategory={setCategory}
+  featureImageUrl={featureImageUrl}
+  setFeatureImageUrl={setFeatureImageUrl}
+ 
+/>
 
       {status === "draft" ? (
         <Button onClick={handlePublish}>Publish</Button>
       ) : (
-        <Button variant="outline" onClick={handleUnpublish}>
-          Unpublish
-        </Button>
+        <Button variant="outline" onClick={handleUnpublish}>Unpublish</Button>
       )}
     </div>
+
   </div>
 </header>
 
+
       {/* Editor Content */}
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className=" container mx-auto px-4 py-8 max-w-4xl">
         <div className="space-y-6">
           <Input
             placeholder="Article title..."
@@ -282,16 +292,16 @@ export default function Editor() {
             className="text-4xl font-bold tracking-tight border-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
           />
 
-          <div className="prose prose-lg max-w-none">
+          <div className=" max-w-none">
             {hasLoadedContent || isNew ? (
-              <div className="not-prose"> {/* <-- This CSS fix is still needed */}
+              <div className="not-prose">  
                 <BlockNoteEditor
                   key={articleId || 'new'}
-                  // 5. EDITOR FIX 1: Pass the raw APIBlocks
+                  // ✅ 5. EDITOR FIX 1: Pass the native JSON document
                   initialContent={blogBlocks}
-                  // 6. EDITOR FIX 2: Translate BlockNote's output back to APIBlocks
+                  // ✅ 6. EDITOR FIX 2: Receive the native JSON document
                   onChange={(editorBlocks) => {
-                    setBlogBlocks(blockNoteToApi(editorBlocks));
+                    setBlogBlocks(editorBlocks); // No translation needed!
                   }}
                 />
               </div>

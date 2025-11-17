@@ -1,74 +1,59 @@
 import { useEffect } from "react";
 import { useCreateBlockNote } from "@blocknote/react";
-
-// 1. Import the schema and the "create" functions for each block
-import {
-  BlockNoteSchema,
-  createParagraphBlockSpec,
-  createHeadingBlockSpec,
-  createImageBlockSpec,
-  createTableBlockSpec,
-} from "@blocknote/core"; // <-- Imports are fixed
-
 import { BlockNoteView } from "@blocknote/shadcn";
-import "@blocknote/core/fonts/inter.css";
-import "@blocknote/shadcn/style.css";
 import { mediaApi } from "@/lib/api";
-import { apiToBlockNote } from "@/lib/translator";
-import type { APIBlock } from "@/lib/translator";
+
+import {
+  type PartialBlock,
+ 
+} from "@blocknote/core";
+
+type BlockNoteDocument = PartialBlock<any>[];
 
 interface BlockNoteEditorProps {
-  initialContent?: APIBlock[];
-  onChange: (blocks: any[]) => void;
+  initialContent?: BlockNoteDocument;
+  onChange: (blocks: BlockNoteDocument) => void;
+  
 }
-
-// 2. Define your custom schema by calling the create functions
-const schema = BlockNoteSchema.create({
-  blockSpecs: {
-    // We call each function to get the spec
-    paragraph: createParagraphBlockSpec(),
-    heading: createHeadingBlockSpec(),
-    image: createImageBlockSpec(),
-    horizontalRule: createTableBlockSpec(),
-    // We are omitting 'list', 'table', 'blockquote', etc.
-  },
-});
+ 
 
 export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorProps) {
-  const handleUpload = async (file: File) => {
+  const uploadFile = async (file: File) => {
     try {
       const response = await mediaApi.uploadImage(file);
-      return response.data.url;
+      return {
+      url: response.data.url,
+      previewWidth: 300, // or any sensible default width
+      previewHeight: 200, // optional
+    };      // 👈 MUST return final file URL
     } catch (error) {
       console.error("Image upload failed:", error);
-      return null;
+      throw new Error("Image upload failed");
     }
   };
 
   const editor = useCreateBlockNote({
-    // 3. Pass the custom schema to the editor
-    schema,
-    initialContent: initialContent && initialContent.length > 0
-      ? apiToBlockNote(initialContent)
-      : undefined,
-    uploadFile: handleUpload,
+   
+    initialContent: initialContent?.length ? initialContent : undefined,
+    uploadFile,     
+     resolveFileUrl: async (url) => url,  
+    
   });
 
   useEffect(() => {
-    const handleChange = () => {
-      onChange(editor.document);
-    };
-
-    editor.onChange(handleChange);
+    const unsub = editor.onChange(() => onChange(editor.document));
+    return () => unsub();
   }, [editor, onChange]);
 
   return (
-    <div className="blocknote-wrapper">
+    
       <BlockNoteView
         editor={editor}
         theme="light"
-        slashMenu={true} // <-- Disables the "/" menu
-      />
-    </div>
+        slashMenu                     // 👈 enables "/" insert menu
+        formattingToolbar
+        filePanel={false} // disable file panel temporarily    
+        />
+   
   );
 }
