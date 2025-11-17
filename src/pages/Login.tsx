@@ -44,16 +44,11 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl font-bold">Blog Admin</CardTitle>
+          <CardTitle className="text-2xl font-bold">Player Rising Admin</CardTitle>
           <CardDescription>Sign in to manage your content</CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              <strong>Demo Mode:</strong> Configure your API URL in the environment variables to enable authentication.
-            </AlertDescription>
-          </Alert>
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

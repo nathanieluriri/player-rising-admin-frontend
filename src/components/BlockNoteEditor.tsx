@@ -30,6 +30,12 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
   const editor = useCreateBlockNote({
     initialContent: initialContent?.length ? initialContent : undefined,
     uploadFile,
+    defaultProps: {
+      image: {
+        previewWidth: 400,
+        previewHeight:400,
+      },
+    },
   });
 
   useEffect(() => {
