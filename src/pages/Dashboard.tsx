@@ -150,7 +150,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Blog Admin</h1>
+          <h1 className="text-2xl font-bold">Player Rising Admin</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">{admin?.full_name}</span>
             <Button variant="ghost" size="sm" onClick={logout}>

@@ -35,6 +35,7 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
     defaultProps: {
       image: {
         previewWidth: 400,
+        previewHeight:400,
       },
     },
   });
