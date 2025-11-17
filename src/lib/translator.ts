@@ -207,7 +207,7 @@ export function apiToBlockNote(apiBlocks: APIBlock[]): BlockNoteBlock[] {
               caption: block.caption || "",
               altText: block.altText || "Image",
               previewWidth: block.previewWidth || 500,
-              previewHeight: block.previewHeight,
+              previewHeight: block.previewHeight|| 500,
             },
            
           };

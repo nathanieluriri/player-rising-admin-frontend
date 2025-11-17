@@ -1,5 +1,15 @@
 import { useEffect } from "react";
 import { useCreateBlockNote } from "@blocknote/react";
+
+// 1. Import the schema and the "create" functions for each block
+import {
+  BlockNoteSchema,
+  createParagraphBlockSpec,
+  createHeadingBlockSpec,
+  createImageBlockSpec,
+  createTableBlockSpec,
+} from "@blocknote/core"; // <-- Imports are fixed
+
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
@@ -11,6 +21,18 @@ interface BlockNoteEditorProps {
   initialContent?: APIBlock[];
   onChange: (blocks: any[]) => void;
 }
+
+// 2. Define your custom schema by calling the create functions
+const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    // We call each function to get the spec
+    paragraph: createParagraphBlockSpec(),
+    heading: createHeadingBlockSpec(),
+    image: createImageBlockSpec(),
+    horizontalRule: createTableBlockSpec(),
+    // We are omitting 'list', 'table', 'blockquote', etc.
+  },
+});
 
 export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorProps) {
   const handleUpload = async (file: File) => {
@@ -24,8 +46,10 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
   };
 
   const editor = useCreateBlockNote({
-    initialContent: initialContent && initialContent.length > 0 
-      ? apiToBlockNote(initialContent) 
+    // 3. Pass the custom schema to the editor
+    schema,
+    initialContent: initialContent && initialContent.length > 0
+      ? apiToBlockNote(initialContent)
       : undefined,
     uploadFile: handleUpload,
   });
@@ -40,7 +64,11 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
 
   return (
     <div className="blocknote-wrapper">
-      <BlockNoteView editor={editor} theme="light" />
+      <BlockNoteView
+        editor={editor}
+        theme="light"
+        slashMenu={true} // <-- Disables the "/" menu
+      />
     </div>
   );
 }
