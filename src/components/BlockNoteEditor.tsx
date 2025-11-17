@@ -21,11 +21,7 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
   const uploadFile = async (file: File) => {
     try {
       const response = await mediaApi.uploadImage(file);
-      return {
-      url: response.data.url,
-      previewWidth: 300, // or any sensible default width
-      previewHeight: 200, // optional
-    };      // 👈 MUST return final file URL
+      return response.data.url;
     } catch (error) {
       console.error("Image upload failed:", error);
       throw new Error("Image upload failed");
@@ -33,11 +29,8 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
   };
 
   const editor = useCreateBlockNote({
-   
     initialContent: initialContent?.length ? initialContent : undefined,
-    uploadFile,     
-     resolveFileUrl: async (url) => url,  
-    
+    uploadFile,
   });
 
   useEffect(() => {
