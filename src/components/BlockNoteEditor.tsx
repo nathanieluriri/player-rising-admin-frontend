@@ -5,8 +5,6 @@ import { mediaApi } from "@/lib/api";
 
 import {
   type PartialBlock,
-  type BlockNoteSchema,
-  defaultBlockSpecs,
 } from "@blocknote/core";
 
 type BlockNoteDocument = PartialBlock<any>[];
