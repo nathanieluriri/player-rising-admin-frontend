@@ -1,0 +1,5 @@
+name = "players-rising-admin-frontend"
+compatibility_date = "2025-11-18"
+
+[assets]
+directory = "./dist"
