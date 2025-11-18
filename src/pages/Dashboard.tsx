@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/select";
 import { blogApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { PlusCircle, LogOut, Edit, Trash2, Search } from "lucide-react";
+// ADDED: ChevronDown
+import { PlusCircle, LogOut, Edit, Trash2, Search, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import AnimatedContent from "@/components/AnimatedContent";
@@ -43,6 +44,9 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"all" | "draft" | "published">("all");
+  
+  // ADDED: State for scroll indicator
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
 
   const { logout, admin } = useAuth();
   const navigate = useNavigate();
@@ -50,6 +54,29 @@ export default function Dashboard() {
   useEffect(() => {
     loadBlogs();
   }, []);
+
+  // ADDED: Scroll detection logic
+  useEffect(() => {
+    const checkScroll = () => {
+      // Check if content exceeds viewport height
+      const hasScroll = document.documentElement.scrollHeight > window.innerHeight;
+      // Check if user is at the top (tolerance of 20px)
+      const isScrolledDown = window.scrollY > 20;
+
+      setShowScrollIndicator(hasScroll && !isScrolledDown);
+    };
+
+    // Initial check and listeners
+    checkScroll();
+    window.addEventListener("scroll", checkScroll);
+    window.addEventListener("resize", checkScroll);
+
+    return () => {
+      window.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+    // Dependencies ensure we re-check when content changes height
+  }, [blogs, isLoading, activeTab, selectedCategory]);
 
   useEffect(() => {
     // load categories (only in this component)
@@ -130,9 +157,8 @@ export default function Dashboard() {
     return (
       <div className="space-y-4">
         {blogsToRender.map((blog, i) => (
-          <AnimatedContent key={blog._id} delay={i * 60}>
-           
-              <Card className="transition-shadow hover:shadow-md">
+          <AnimatedContent key={blog._id}>
+              <Card className="transition-shadow hover:shadow-md" >
                 <CardContent className="p-6" onClick={() => navigate(`/admin/editor/${blog._id}`)}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -188,7 +214,6 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
-            
           </AnimatedContent>
         ))}
       </div>
@@ -196,7 +221,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative pb-20"> 
+      {/* Note: Added pb-20 above to ensure bottom content isn't hidden behind fixed elements */}
+      
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold">
@@ -220,18 +247,20 @@ export default function Dashboard() {
               <BlurText text="Articles" />
             </h2>
             <p className="text-muted-foreground">Manage your blog content</p>
-            <div className="fixed bottom-6 right-6">
-  <ElectricBorder>
-    <Button
-      className="flex items-center gap-2 bg-primary text-white shadow-lg hover:shadow-xl"
-      size="lg"
-      onClick={() => navigate("/admin/editor/new")}
-    >
-      <PlusCircle className="h-5 w-5" />
-      New Article
-    </Button>
-  </ElectricBorder>
-</div>
+            
+            {/* Floating Action Button */}
+            <div className="fixed z-50 bottom-6 right-6">
+              <ElectricBorder>
+                <Button
+                  className="flex items-center gap-2 bg-primary text-white shadow-lg hover:shadow-xl"
+                  size="lg"
+                  onClick={() => navigate("/admin/editor/new")}
+                >
+                  <PlusCircle className="h-5 w-5" />
+                  New Article
+                </Button>
+              </ElectricBorder>
+            </div>
 
           </div>
 
@@ -307,6 +336,14 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* ADDED: Animated Scroll Indicator */}
+      {showScrollIndicator && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex flex-col items-center animate-bounce text-muted-foreground/80 transition-opacity duration-300">
+          <span className="text-[10px] uppercase tracking-widest mb-1 font-medium">Scroll</span>
+          <ChevronDown className="h-6 w-6" />
+        </div>
+      )}
     </div>
   );
 }
