@@ -261,15 +261,7 @@ export default function Dashboard() {
                 </Button>
               </ElectricBorder>
             </div>
-
           </div>
-
-          <AnimatedContent delay={50}>
-            <Button onClick={() => navigate("/admin/editor/new")}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New Article
-            </Button>
-          </AnimatedContent>
         </div>
 
         {isLoading ? (

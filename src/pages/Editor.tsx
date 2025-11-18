@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import useCategories from "@/hooks/useCategories";
 import { Category } from "@/lib/api";
 import type { PartialBlock } from "@blocknote/core";
+import { MediaUploaderModal } from "@/components/MediaUploaderWithCaptionComponent";
 
 // We'll use this type alias for clarity. It's BlockNote's native format.
 type BlockNoteDocument = PartialBlock<any>[];
@@ -318,6 +319,14 @@ export default function Editor() {
 
           {/* Right controls */}
           <div className="flex items-center gap-3">
+            <MediaUploaderModal 
+  onUploadSuccess={(data) => {
+   window.location.reload();
+  }} 
+  mediaId={articleId } 
+  label="Add Media Block"
+  variant="secondary"
+/>
             <BlogSettingsDialog
               authorName={authorName}
               setAuthorName={setAuthorName}
@@ -349,7 +358,7 @@ export default function Editor() {
             placeholder="Article title..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="text-4xl font-bold tracking-tight border-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
+            className="text-4xl text-center font-bold tracking-tight border-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
           />
 
           <div className="max-w-none">
