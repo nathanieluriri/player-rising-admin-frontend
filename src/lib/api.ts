@@ -40,6 +40,13 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      const refreshToken = localStorage.getItem("refresh_token");
+
+      if (!refreshToken) {
+        window.location.href = "/login";
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -54,35 +61,40 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (!refreshToken) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        window.location.href = "/login";
-        return Promise.reject(error);
-      }
-
       try {
-        const response = await axios.post(`${API_BASE_URL}/v1/admins/refresh`, {
+        // use your axios instance so baseURL is correct
+        const response = await api.post("/v1/admins/refresh", {
           refresh_token: refreshToken,
         });
 
-        const { access_token, refresh_token: newRefreshToken } = response.data.data;
+        const { access_token, refresh_token: newRefreshToken } =
+          response.data.data;
+
         localStorage.setItem("access_token", access_token);
         localStorage.setItem("refresh_token", newRefreshToken);
 
         api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+
+        // clone request before retry
+        const retryRequest = {
+          ...originalRequest,
+          headers: {
+            ...originalRequest.headers,
+            Authorization: `Bearer ${access_token}`,
+          },
+        };
 
         processQueue(null, access_token);
         isRefreshing = false;
 
-        return api(originalRequest);
+        return api(retryRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         isRefreshing = false;
+
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+
         window.location.href = "/login";
         return Promise.reject(refreshError);
       }
@@ -156,3 +168,17 @@ export const mediaApi = {
     return response.data;
   },
 };
+
+export interface Category {
+  name: string;
+  slug: string;
+}
+export async function fetchCategories(): Promise<Category[]> {
+  const res = await fetch(`${API_BASE_URL}api/v1/articles/content/categories`);
+
+  if (!res.ok) throw new Error("Failed to load categories");
+
+  const json = await res.json();
+  return json.data as Category[];
+}
+

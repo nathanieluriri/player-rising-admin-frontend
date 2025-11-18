@@ -5,41 +5,71 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { blogApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { PlusCircle, LogOut, Edit, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 
-const CATEGORIES = [
-  { name: "Juventus", slug: "juventus" },
-  { name: "Manchester United", slug: "manchester-united" },
-  { name: "Manchester City", slug: "manchester-city" },
-  { name: "Arsenal", slug: "arsenal" },
-  { name: "Chelsea", slug: "chelsea" },
-  { name: "Liverpool", slug: "liverpool" },
-];
+import AnimatedContent from "@/components/AnimatedContent";
+import ElectricBorder from "@/components/ElectricBorder";
+import BlurText from "@/components/BlurText";
+
+import { Category, fetchCategories } from "@/lib/api";
 
 interface Blog {
   _id: string;
   title: string;
   state: "draft" | "published";
   author: { name: string };
-  category: { name: string; slug: string };
+  category: Category;
   last_updated: number;
+  excerpt: string;
 }
 
 export default function Dashboard() {
+  // categories must be inside the component (hooks)
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"all" | "draft" | "published">("all");
+
   const { logout, admin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     loadBlogs();
+  }, []);
+
+  useEffect(() => {
+    // load categories (only in this component)
+    let mounted = true;
+    setCategoriesLoading(true);
+    fetchCategories()
+      .then((data) => {
+        if (!mounted) return;
+        setCategories(data ?? []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch categories", err);
+        toast.error("Failed to load categories");
+      })
+      .finally(() => {
+        if (mounted) setCategoriesLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const loadBlogs = async () => {
@@ -55,7 +85,6 @@ export default function Dashboard() {
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Delete "${title}"?`)) return;
-
     try {
       await blogApi.delete(id);
       toast.success("Blog deleted");
@@ -65,30 +94,30 @@ export default function Dashboard() {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+  const formatDate = (timestamp: number) =>
+    new Date(timestamp * 1000).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-  };
 
   const filteredBlogs = blogs.filter((blog) => {
-    const matchesSearch = 
-      blog.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      blog._id.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCategory = 
-      selectedCategory === "all" || blog.category.slug === selectedCategory;
-    
-    const matchesTab = 
-      activeTab === "all" || blog.state === activeTab;
-    
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      blog.title.toLowerCase().includes(q) ||
+      blog._id.toLowerCase().includes(q);
+
+    const matchesCategory =
+      selectedCategory === "all" || blog.category?.slug === selectedCategory;
+
+    const matchesTab = activeTab === "all" || blog.state === activeTab;
+
     return matchesSearch && matchesCategory && matchesTab;
   });
 
-  const renderBlogList = (blogs: Blog[]) => {
-    if (blogs.length === 0) {
+  const renderBlogList = (blogsToRender: Blog[]) => {
+    if (!blogsToRender || blogsToRender.length === 0) {
       return (
         <Card>
           <CardContent className="py-12 text-center">
@@ -100,47 +129,67 @@ export default function Dashboard() {
 
     return (
       <div className="space-y-4">
-        {blogs.map((blog) => (
-          <Card key={blog._id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-semibold truncate">{blog.title}</h3>
-                    <Badge variant={blog.state === "published" ? "default" : "secondary"}>
-                      {blog.state}
-                    </Badge>
+        {blogsToRender.map((blog, i) => (
+          <AnimatedContent key={blog._id} delay={i * 60}>
+            <ElectricBorder>
+              <Card className="transition-shadow hover:shadow-md">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-xl font-semibold truncate">
+                          <BlurText text={blog.title} />
+                        </h3>
+                        <Badge
+                          variant={blog.state === "published" ? "default" : "secondary"}
+                        >
+                          <BlurText text={blog.state} />
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span>
+                          <BlurText text={blog.author.name} />
+                        </span>
+                        <span>•</span>
+                        <span>
+                          <BlurText text={blog.category?.name ?? "—"} />
+                        </span>
+                        <span>•</span>
+                        <span>
+                          <BlurText text={formatDate(blog.last_updated)} />
+                        </span>
+                      </div>
+
+                      <div className="mt-2 text-xs text-muted-foreground font-mono">
+                        ID: {blog._id}
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground font-mono">
+                        Excerpt: {blog.excerpt}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/admin/editor/${blog._id}`)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(blog._id, blog.title)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{blog.author.name}</span>
-                    <span>•</span>
-                    <span>{blog.category.name}</span>
-                    <span>•</span>
-                    <span>{formatDate(blog.last_updated)}</span>
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground font-mono">
-                    ID: {blog._id}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(`/admin/editor/${blog._id}`)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(blog._id, blog.title)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </ElectricBorder>
+          </AnimatedContent>
         ))}
       </div>
     );
@@ -150,7 +199,10 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Player Rising Admin</h1>
+          <h1 className="text-2xl font-bold">
+            <BlurText text="Player Rising Admin" />
+          </h1>
+
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">{admin?.full_name}</span>
             <Button variant="ghost" size="sm" onClick={logout}>
@@ -164,13 +216,18 @@ export default function Dashboard() {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold mb-2">Articles</h2>
+            <h2 className="text-3xl font-bold mb-2">
+              <BlurText text="Articles" />
+            </h2>
             <p className="text-muted-foreground">Manage your blog content</p>
           </div>
-          <Button onClick={() => navigate("/admin/editor/new")}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Article
-          </Button>
+
+          <AnimatedContent delay={50}>
+            <Button onClick={() => navigate("/admin/editor/new")}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              New Article
+            </Button>
+          </AnimatedContent>
         </div>
 
         {isLoading ? (
@@ -198,13 +255,17 @@ export default function Dashboard() {
                   className="pl-9"
                 />
               </div>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+
+              <Select
+                value={selectedCategory}
+                onValueChange={(val) => setSelectedCategory(val)}
+              >
                 <SelectTrigger className="w-full sm:w-[200px]">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <SelectItem key={cat.slug} value={cat.slug}>
                       {cat.name}
                     </SelectItem>
@@ -219,14 +280,15 @@ export default function Dashboard() {
                 <TabsTrigger value="draft">Draft</TabsTrigger>
                 <TabsTrigger value="published">Published</TabsTrigger>
               </TabsList>
+
               <TabsContent value="all" className="mt-6">
                 {renderBlogList(filteredBlogs)}
               </TabsContent>
               <TabsContent value="draft" className="mt-6">
-                {renderBlogList(filteredBlogs)}
+                {renderBlogList(filteredBlogs.filter((b) => b.state === "draft"))}
               </TabsContent>
               <TabsContent value="published" className="mt-6">
-                {renderBlogList(filteredBlogs)}
+                {renderBlogList(filteredBlogs.filter((b) => b.state === "published"))}
               </TabsContent>
             </Tabs>
           </div>

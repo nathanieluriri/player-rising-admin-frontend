@@ -1,19 +1,27 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+// BlogSettingsDialog.tsx
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ImageUploader } from "@/components/ImageUploader";
 import { Settings } from "lucide-react";
+import React from "react";
 
-const CATEGORIES = [
-  { name: "Juventus", slug: "juventus" },
-  { name: "Manchester United", slug: "manchester-united" },
-  { name: "Manchester City", slug: "manchester-city" },
-  { name: "Arsenal", slug: "arsenal" },
-  { name: "Chelsea", slug: "chelsea" },
-  { name: "Liverpool", slug: "liverpool" },
-];
+import useCategories from "@/hooks/useCategories"; // hook from above
+import { Category } from "@/lib/api";
 
 interface BlogSettingsDialogProps {
   authorName: string;
@@ -22,8 +30,8 @@ interface BlogSettingsDialogProps {
   setAuthorAvatar: (value: string) => void;
   authorAffiliation: string;
   setAuthorAffiliation: (value: string) => void;
-  category: { name: string; slug: string };
-  setCategory: (value: { name: string; slug: string }) => void;
+  category: Category | null; // allow null initially
+  setCategory: (value: Category | null) => void;
   featureImageUrl: string;
   setFeatureImageUrl: (value: string) => void;
 }
@@ -40,6 +48,17 @@ export function BlogSettingsDialog({
   featureImageUrl,
   setFeatureImageUrl,
 }: BlogSettingsDialogProps) {
+  const { categories, isLoading } = useCategories();
+
+  // If you want to auto-select the current category when categories load:
+  React.useEffect(() => {
+    if (!category && !isLoading && categories.length > 0) {
+      // optional: set first category as default (or don't auto-set)
+      // setCategory(categories[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories, isLoading]);
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -48,11 +67,12 @@ export function BlogSettingsDialog({
           Settings
         </Button>
       </DialogTrigger>
+
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Blog Settings</DialogTitle>
         </DialogHeader>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
           <div className="space-y-4">
             <div className="space-y-2">
@@ -63,7 +83,7 @@ export function BlogSettingsDialog({
                 placeholder="John Doe"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label>Author Affiliation</Label>
               <Input
@@ -75,22 +95,36 @@ export function BlogSettingsDialog({
 
             <div className="space-y-2">
               <Label>Category</Label>
+
+              {/* Disable select while categories loading */}
               <Select
-                value={category.slug}
+                value={category?.slug ?? ""}
                 onValueChange={(slug) => {
-                  const cat = CATEGORIES.find(c => c.slug === slug);
-                  if (cat) setCategory(cat);
+                  const found = categories.find((c) => c.slug === slug) ?? null;
+                  setCategory(found);
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  {/* Show placeholder when no category is selected */}
+                  <SelectValue placeholder={isLoading ? "Loading categories..." : "Select category"} />
                 </SelectTrigger>
+
                 <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat.slug} value={cat.slug}>
-                      {cat.name}
+                  {/* optional loading item */}
+                  {isLoading ? (
+                    <SelectItem value="">
+                      Loading...
                     </SelectItem>
-                  ))}
+                  ) : (
+                    <>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.slug} value={cat.slug}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -120,5 +154,3 @@ export function BlogSettingsDialog({
     </Dialog>
   );
 }
-
-export { CATEGORIES };
