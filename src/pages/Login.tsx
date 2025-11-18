@@ -8,9 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { AlertCircle } from "lucide-react";
-import AnimatedContent from "@/components/AnimatedContent";
-import GradientButton from "@/components/ui/gradient-button";
-
+import ElectricBorder from "@/components/ElectricBorder";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -73,20 +71,11 @@ export default function Login() {
                 required
               />
             </div>
-            <AnimatedContent delay={380}>
-                      <div>
-                        <GradientButton
-                          type="submit"
-                          className="w-full"
-                          disabled={isLoading}
-                          // ensure gradient uses dashboard color
-                          gradientFrom="#000000"
-                          gradientTo="#0FB68E"
-                        >
-                          {isLoading ? "Signing in..." : "Sign In"}
-                        </GradientButton>
-                      </div>
-                    </AnimatedContent>
+            <ElectricBorder>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign In"}
+            </Button>
+            </ElectricBorder>
           </form>
         </CardContent>
       </Card>

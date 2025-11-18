@@ -131,9 +131,9 @@ export default function Dashboard() {
       <div className="space-y-4">
         {blogsToRender.map((blog, i) => (
           <AnimatedContent key={blog._id} delay={i * 60}>
-            <ElectricBorder>
+           
               <Card className="transition-shadow hover:shadow-md">
-                <CardContent className="p-6">
+                <CardContent className="p-6" onClick={() => navigate(`/admin/editor/${blog._id}`)}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2">
@@ -143,17 +143,17 @@ export default function Dashboard() {
                         <Badge
                           variant={blog.state === "published" ? "default" : "secondary"}
                         >
-                          <BlurText text={blog.state} />
+                          {blog.state} 
                         </Badge>
                       </div>
 
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span>
-                          <BlurText text={blog.author.name} />
+                          {blog.author.name} 
                         </span>
                         <span>•</span>
                         <span>
-                          <BlurText text={blog.category?.name ?? "—"} />
+                          {blog.category?.name ?? "—"} 
                         </span>
                         <span>•</span>
                         <span>
@@ -188,7 +188,7 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
-            </ElectricBorder>
+            
           </AnimatedContent>
         ))}
       </div>
@@ -220,6 +220,19 @@ export default function Dashboard() {
               <BlurText text="Articles" />
             </h2>
             <p className="text-muted-foreground">Manage your blog content</p>
+            <div className="fixed bottom-6 right-6">
+  <ElectricBorder>
+    <Button
+      className="flex items-center gap-2 bg-primary text-white shadow-lg hover:shadow-xl"
+      size="lg"
+      onClick={() => navigate("/admin/editor/new")}
+    >
+      <PlusCircle className="h-5 w-5" />
+      New Article
+    </Button>
+  </ElectricBorder>
+</div>
+
           </div>
 
           <AnimatedContent delay={50}>
