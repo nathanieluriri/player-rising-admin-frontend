@@ -187,6 +187,61 @@ export const mediaApi = {
   },
 };
 
+// Content Management Media APIs
+export const ContentManagementMediaApi = {
+  // Upload a new media file
+  upload: async (file: File, category: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("category", category);
+
+    const response = await api.post("/v1/media/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    return response.data;
+  },
+
+  // List all media items
+  list: async ({ start, stop }: { start: number; stop: number }) => {
+    const response = await api.get(`/v1/media/?start=${start}&stop=${stop}`);
+    return response.data;
+  },
+
+  // List media by type (image | video)
+  listByType: async (
+    type: "image" | "video",
+    start: number,
+    stop: number
+  ) => {
+    const response = await api.get(
+      `/v1/media/by-type/${type}?start=${start}&stop=${stop}`
+    );
+    return response.data;
+  },
+
+  // Get a single media item by ID
+  getById: async (id: string) => {
+    const response = await api.get(`/v1/media/${id}`);
+    return response.data;
+  },
+
+  // Update media (e.g. category)
+  update: async (id: string, payload: { category?: string }) => {
+    const response = await api.patch(`/v1/media/${id}`, payload);
+    return response.data;
+  },
+
+  // Delete media item
+  delete: async (id: string) => {
+    const response = await api.delete(`/v1/media/${id}`);
+    return response.data;
+  },
+};
+
+
 export interface Category {
   name: string;
   slug: string;

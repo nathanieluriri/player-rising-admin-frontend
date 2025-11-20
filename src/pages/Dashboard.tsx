@@ -20,7 +20,8 @@ import {
   Edit, 
   Trash2, 
   Search, 
-  Video,
+  Film,
+   
   FileText,
   CheckSquare,
   Square,
@@ -362,14 +363,14 @@ export default function Dashboard() {
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-4 sm:gap-8">
               <h1 className="text-xl font-bold hidden sm:block">
-                <BlurText text="Player Rising" />
+                <BlurText text="Article Library" />
               </h1>
               <nav className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg overflow-x-auto">
                 <Button variant="secondary" size="sm" className="gap-2 shadow-sm bg-background text-foreground text-xs sm:text-sm px-2 sm:px-4">
                   <FileText className="h-3 w-3 sm:h-4 sm:w-4" /> Articles
                 </Button>
                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground text-xs sm:text-sm px-2 sm:px-4" onClick={() => navigate('/admin/videos')}>
-                  <Video className="h-3 w-3 sm:h-4 sm:w-4" /> Videos
+                  <Film className="h-3 w-3 sm:h-4 sm:w-4" /> Media
                 </Button>
               </nav>
             </div>
@@ -386,10 +387,7 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-3 sm:px-4 py-6">
-        <div className="mb-6 sm:mb-8">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Content Manager</h2>
-          <p className="text-sm sm:text-base text-muted-foreground">Create and manage your blog posts.</p>
-        </div>
+       
 
         {/* Create Button - HIDDEN WHEN SELECTING */}
         {selectedIds.size === 0 && (
