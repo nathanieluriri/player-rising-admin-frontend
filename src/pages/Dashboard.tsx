@@ -12,17 +12,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { blogApi } from "@/lib/api";
+import { blogApi, Category, fetchCategories } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-// ADDED: ChevronDown
-import { PlusCircle, LogOut, Edit, Trash2, Search, ChevronDown } from "lucide-react";
+import { 
+  PlusCircle, 
+  LogOut, 
+  Edit, 
+  Trash2, 
+  Search, 
+  Video,
+  FileText,
+  CheckSquare,
+  Square,
+  ChevronLeft,
+  ChevronRight,
+  UploadCloud,
+  FileEdit
+} from "lucide-react";
 import { toast } from "sonner";
 
 import AnimatedContent from "@/components/AnimatedContent";
 import ElectricBorder from "@/components/ElectricBorder";
 import BlurText from "@/components/BlurText";
-
-import { Category, fetchCategories } from "@/lib/api";
 
 interface Blog {
   _id: string;
@@ -30,56 +41,42 @@ interface Blog {
   state: "draft" | "published";
   author: { name: string };
   category: Category;
-  last_updated: number;
+  lastUpdated: number;
   excerpt: string;
+  blogType: "normal" | "editors pick" | "hero section" | "featured story"; 
+  totalItems: number;
+  itemIndex: number;
 }
 
 export default function Dashboard() {
-  // categories must be inside the component (hooks)
+  // Data State
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
-
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Filter State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"all" | "draft" | "published">("all");
-  
-  // ADDED: State for scroll indicator
-  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const [selectedType, setSelectedType] = useState<string>("all");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { logout, admin } = useAuth();
   const navigate = useNavigate();
 
+  // --- 1. Data Loading ---
   useEffect(() => {
     loadBlogs();
   }, []);
 
-  // ADDED: Scroll detection logic
   useEffect(() => {
-    const checkScroll = () => {
-      // Check if content exceeds viewport height
-      const hasScroll = document.documentElement.scrollHeight > window.innerHeight;
-      // Check if user is at the top (tolerance of 20px)
-      const isScrolledDown = window.scrollY > 20;
-
-      setShowScrollIndicator(hasScroll && !isScrolledDown);
-    };
-
-    // Initial check and listeners
-    checkScroll();
-    window.addEventListener("scroll", checkScroll);
-    window.addEventListener("resize", checkScroll);
-
-    return () => {
-      window.removeEventListener("scroll", checkScroll);
-      window.removeEventListener("resize", checkScroll);
-    };
-    // Dependencies ensure we re-check when content changes height
-  }, [blogs, isLoading, activeTab, selectedCategory]);
-
-  useEffect(() => {
-    // load categories (only in this component)
     let mounted = true;
     setCategoriesLoading(true);
     fetchCategories()
@@ -94,14 +91,12 @@ export default function Dashboard() {
       .finally(() => {
         if (mounted) setCategoriesLoading(false);
       });
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   const loadBlogs = async () => {
     try {
-      const response = await blogApi.list();
+      const response = await blogApi.list({ start: 0, stop: 1000 }); 
       setBlogs(response.data || []);
     } catch (error) {
       toast.error("Failed to load blogs");
@@ -110,16 +105,106 @@ export default function Dashboard() {
     }
   };
 
+  // --- 2. Filtering Logic ---
+  const filteredBlogs = blogs.filter((blog) => {
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      blog.title.toLowerCase().includes(q) ||
+      blog._id.toLowerCase().includes(q);
+    const matchesCategory =
+      selectedCategory === "all" || blog.category?.slug === selectedCategory;
+    const matchesType = 
+      selectedType === "all" || (blog.blogType || "normal") === selectedType;
+    const matchesTab = activeTab === "all" || blog.state === activeTab;
+
+    return matchesSearch && matchesCategory && matchesTab && matchesType;
+  });
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedType, activeTab]);
+
+  // --- 3. Pagination Logic ---
+  const totalPages = Math.ceil(filteredBlogs.length / itemsPerPage);
+  const paginatedBlogs = filteredBlogs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // --- 4. Action Handlers ---
+  
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Delete "${title}"?`)) return;
     try {
       await blogApi.delete(id);
       toast.success("Blog deleted");
       loadBlogs();
+      const newSelected = new Set(selectedIds);
+      newSelected.delete(id);
+      setSelectedIds(newSelected);
     } catch (error) {
       toast.error("Failed to delete blog");
     }
   };
+
+  const handleSelectOne = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === paginatedBlogs.length && paginatedBlogs.length > 0) {
+      // Deselect all on current page
+      setSelectedIds(new Set());
+    } else {
+      // Select all on current page
+      const newSelected = new Set(selectedIds);
+      paginatedBlogs.forEach(blog => newSelected.add(blog._id));
+      setSelectedIds(newSelected);
+    }
+  };
+
+  // Mass Actions
+  const performMassAction = async (action: 'delete' | 'publish' | 'draft') => {
+    if (selectedIds.size === 0) return;
+    
+    const actionText = action === 'delete' ? 'delete' : action === 'publish' ? 'publish' : 'revert to draft';
+    
+    if (!confirm(`Are you sure you want to ${actionText} ${selectedIds.size} items?`)) return;
+
+    const toastId = toast.loading(`Processing ${selectedIds.size} items...`);
+
+    try {
+      const ids = Array.from(selectedIds);
+      
+      await Promise.all(ids.map(id => {
+        if (action === 'delete') return blogApi.delete(id);
+        if (action === 'publish') return blogApi.update(id, { state: 'published' });
+        if (action === 'draft') return blogApi.update(id, { state: 'draft' });
+        return Promise.resolve();
+      }));
+
+      toast.dismiss(toastId);
+      toast.success(`Successfully ${action === 'delete' ? 'deleted' : 'updated'} ${selectedIds.size} items`);
+      
+      setSelectedIds(new Set());
+      loadBlogs();
+      
+    } catch (error) {
+      console.error("Mass action failed:", error);
+      toast.dismiss(toastId);
+      toast.error("Some operations failed. Please try again.");
+    }
+  };
+
+  // --- 5. Render Helpers ---
 
   const formatDate = (timestamp: number) =>
     new Date(timestamp * 1000).toLocaleDateString("en-US", {
@@ -128,212 +213,352 @@ export default function Dashboard() {
       day: "numeric",
     });
 
-  const filteredBlogs = blogs.filter((blog) => {
-    const q = searchQuery.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      blog.title.toLowerCase().includes(q) ||
-      blog._id.toLowerCase().includes(q);
+  const renderTypeBadge = (type?: string) => {
+    if (!type || type === "normal") return null;
+    const styles: Record<string, string> = {
+      hero: "bg-purple-500/15 text-purple-700 hover:bg-purple-500/25 border-purple-200",
+      featured: "bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 border-amber-200",
+      editors_pick: "bg-rose-500/15 text-rose-700 hover:bg-rose-500/25 border-rose-200",
+    };
+    const labels: Record<string, string> = {
+      hero: "Hero",
+      featured: "Featured",
+      editors_pick: "Editor's Pick",
+    };
+    return (
+      <Badge variant="outline" className={`ml-2 ${styles[type] || ""}`}>
+        {labels[type] || type}
+      </Badge>
+    );
+  };
 
-    const matchesCategory =
-      selectedCategory === "all" || blog.category?.slug === selectedCategory;
-
-    const matchesTab = activeTab === "all" || blog.state === activeTab;
-
-    return matchesSearch && matchesCategory && matchesTab;
-  });
-
-  const renderBlogList = (blogsToRender: Blog[]) => {
-    if (!blogsToRender || blogsToRender.length === 0) {
+  const renderBlogList = () => {
+    if (paginatedBlogs.length === 0) {
       return (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">No articles found</p>
+            <p className="text-muted-foreground">No articles found matching your filters</p>
           </CardContent>
         </Card>
       );
     }
 
+    const allSelected = paginatedBlogs.length > 0 && paginatedBlogs.every(b => selectedIds.has(b._id));
+
     return (
       <div className="space-y-4">
-        {blogsToRender.map((blog, i) => (
-          <AnimatedContent key={blog._id}>
-              <Card className="transition-shadow hover:shadow-md" >
-                <CardContent className="p-6" onClick={() => navigate(`/admin/editor/${blog._id}`)}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold truncate">
-                          <BlurText text={blog.title} />
-                        </h3>
-                        <Badge
-                          variant={blog.state === "published" ? "default" : "secondary"}
-                        >
-                          {blog.state} 
-                        </Badge>
-                      </div>
+        {/* Select All Header Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-2 sm:px-4 py-2 bg-secondary/20 rounded-md text-xs sm:text-sm text-muted-foreground gap-2">
+          <div className="flex items-center gap-3">
+            <button onClick={handleSelectAll} className="hover:text-primary transition-colors p-1">
+              {allSelected ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5" />}
+            </button>
+            <span>Select All on this page</span>
+          </div>
+          <div className="pl-9 sm:pl-0">
+             {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredBlogs.length)} of {filteredBlogs.length}
+          </div>
+        </div>
 
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>
-                          {blog.author.name} 
-                        </span>
-                        <span>•</span>
-                        <span>
-                          {blog.category?.name ?? "—"} 
-                        </span>
-                        <span>•</span>
-                        <span>
-                          <BlurText text={formatDate(blog.last_updated)} />
-                        </span>
-                      </div>
-
-                      <div className="mt-2 text-xs text-muted-foreground font-mono">
-                        ID: {blog._id}
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground font-mono">
-                        Excerpt: {blog.excerpt}
-                      </div>
+        {paginatedBlogs.map((blog) => {
+          const isSelected = selectedIds.has(blog._id);
+          
+          return (
+            <AnimatedContent key={blog._id}>
+              <Card 
+                className={`transition-all duration-200 hover:shadow-md group border-l-4 ${isSelected ? 'border-l-primary bg-primary/5' : 'border-l-transparent hover:border-l-primary/50'}`}
+              >
+                <CardContent className="p-3 sm:p-6">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    
+                    {/* Checkbox Area - Larger hit target for mobile */}
+                    <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => handleSelectOne(blog._id)} className="p-1 -ml-1">
+                        {isSelected ? 
+                          <CheckSquare className="h-5 w-5 sm:h-5 sm:w-5 text-primary" /> : 
+                          <Square className="h-5 w-5 sm:h-5 sm:w-5 text-muted-foreground hover:text-primary" />
+                        }
+                      </button>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/admin/editor/${blog._id}`)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(blog._id, blog.title)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    {/* Content Area */}
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/admin/editor/${blog._id}`)}>
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5 sm:mb-2">
+                            <h3 className="text-base sm:text-xl font-semibold truncate max-w-full">
+                              <BlurText text={blog.title} />
+                            </h3>
+                            <div className="flex gap-1 shrink-0 scale-90 sm:scale-100 origin-left">
+                              <Badge
+                                variant={blog.state === "published" ? "default" : "secondary"}
+                              >
+                                {blog.state}
+                              </Badge>
+                              {renderTypeBadge(blog.blogType)}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-xs text-muted-foreground mb-2">
+                            <span className="font-medium text-foreground/80">{blog.author.name}</span>
+                            <span>•</span>
+                            <span className="bg-secondary/50 px-1.5 py-0.5 rounded text-secondary-foreground">
+                              {blog.category?.name ?? "Uncategorized"}
+                            </span>
+                            <span>•</span>
+                            <span>{formatDate(blog.lastUpdated)}</span>
+                          </div>
+
+                          <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                             {blog.excerpt || "No excerpt provided..."}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons - Always visible on mobile, hover on desktop */}
+                        <div className="flex sm:flex-col gap-1 mt-2 sm:mt-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 sm:px-3 sm:h-8 sm:w-8 sm:p-0"
+                            onClick={(e) => {
+                               e.stopPropagation();
+                               navigate(`/admin/editor/${blog._id}`);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 sm:mr-0 mr-1" /> 
+                            <span className="sm:hidden text-xs">Edit</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 sm:px-3 sm:h-8 sm:w-8 sm:p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(blog._id, blog.title);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 sm:mr-0 mr-1" />
+                            <span className="sm:hidden text-xs">Delete</span>
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-          </AnimatedContent>
-        ))}
+            </AnimatedContent>
+          );
+        })}
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-background relative pb-20"> 
-      {/* Note: Added pb-20 above to ensure bottom content isn't hidden behind fixed elements */}
+    <div className="min-h-screen bg-background relative pb-32">
       
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">
-            <BlurText text="Player Rising Admin" />
-          </h1>
-
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{admin?.full_name}</span>
-            <Button variant="ghost" size="sm" onClick={logout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+      {/* HEADER */}
+      <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="container mx-auto px-4">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-4 sm:gap-8">
+              <h1 className="text-xl font-bold hidden sm:block">
+                <BlurText text="Player Rising" />
+              </h1>
+              <nav className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg overflow-x-auto">
+                <Button variant="secondary" size="sm" className="gap-2 shadow-sm bg-background text-foreground text-xs sm:text-sm px-2 sm:px-4">
+                  <FileText className="h-3 w-3 sm:h-4 sm:w-4" /> Articles
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground text-xs sm:text-sm px-2 sm:px-4" onClick={() => navigate('/admin/videos')}>
+                  <Video className="h-3 w-3 sm:h-4 sm:w-4" /> Videos
+                </Button>
+              </nav>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-xs sm:text-sm text-muted-foreground hidden md:inline-block">
+                {admin?.full_name}
+              </span>
+              <Button variant="ghost" size="icon" onClick={logout} title="Logout">
+                <LogOut className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold mb-2">
-              <BlurText text="Articles" />
-            </h2>
-            <p className="text-muted-foreground">Manage your blog content</p>
-            
-            {/* Floating Action Button */}
-            <div className="fixed z-50 bottom-6 right-6">
-              <ElectricBorder>
-                <Button
-                  className="flex items-center gap-2 bg-primary text-white shadow-lg hover:shadow-xl"
-                  size="lg"
-                  onClick={() => navigate("/admin/editor/new")}
-                >
-                  <PlusCircle className="h-5 w-5" />
-                  New Article
-                </Button>
-              </ElectricBorder>
-            </div>
-          </div>
+      <main className="container mx-auto px-3 sm:px-4 py-6">
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Content Manager</h2>
+          <p className="text-sm sm:text-base text-muted-foreground">Create and manage your blog posts.</p>
         </div>
 
-        {isLoading ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        ) : blogs.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">No articles yet</p>
-              <Button onClick={() => navigate("/admin/editor/new")}>
-                Create your first article
+        {/* Create Button - HIDDEN WHEN SELECTING */}
+        {selectedIds.size === 0 && (
+          <div className="fixed z-50 bottom-6 right-6 animate-in fade-in zoom-in duration-300">
+            <ElectricBorder className="rounded-full">
+              <Button
+                className="flex items-center gap-2 bg-primary text-primary-foreground shadow-lg hover:shadow-xl rounded-full px-4 sm:px-6 h-12 sm:h-14"
+                onClick={() => navigate("/admin/editor/new")}
+              >
+                <PlusCircle className="h-5 w-5" />
+                <span className="font-semibold text-sm sm:text-base">New Article</span>
               </Button>
-            </CardContent>
-          </Card>
+            </ElectricBorder>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground">Loading articles...</p>
+          </div>
         ) : (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
+          <div className="space-y-4 sm:space-y-6">
+            
+            {/* FILTERS - OPTIMIZED FOR MOBILE GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
+              <div className="md:col-span-5 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by title or ID..."
+                  placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 w-full"
                 />
               </div>
-
-              <Select
-                value={selectedCategory}
-                onValueChange={(val) => setSelectedCategory(val)}
-              >
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.slug} value={cat.slug}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Category" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.slug} value={cat.slug}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedType} onValueChange={setSelectedType}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="featured story">Featured</SelectItem>
+                    <SelectItem value="hero section">Hero</SelectItem>
+                    <SelectItem value="editors pick">Editor's Pick</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="col-span-2 sm:col-span-1">
+                  <Select 
+                    value={String(itemsPerPage)} 
+                    onValueChange={(v) => setItemsPerPage(Number(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Rows" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 per page</SelectItem>
+                      <SelectItem value="10">10 per page</SelectItem>
+                      <SelectItem value="20">20 per page</SelectItem>
+                      <SelectItem value="50">50 per page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-              <TabsList className="grid w-full grid-cols-3">
+            {/* Tabs */}
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+              <TabsList className="grid w-full grid-cols-3 max-w-md mb-4 sm:mb-6">
                 <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="draft">Draft</TabsTrigger>
+                <TabsTrigger value="draft">Drafts</TabsTrigger>
                 <TabsTrigger value="published">Published</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="all" className="mt-6">
-                {renderBlogList(filteredBlogs)}
+              <TabsContent value="all" className="mt-0">
+                {renderBlogList()}
               </TabsContent>
-              <TabsContent value="draft" className="mt-6">
-                {renderBlogList(filteredBlogs.filter((b) => b.state === "draft"))}
+              <TabsContent value="draft" className="mt-0">
+                {renderBlogList()}
               </TabsContent>
-              <TabsContent value="published" className="mt-6">
-                {renderBlogList(filteredBlogs.filter((b) => b.state === "published"))}
+              <TabsContent value="published" className="mt-0">
+                {renderBlogList()}
               </TabsContent>
             </Tabs>
+
+            {/* PAGINATION CONTROLS */}
+            {filteredBlogs.length > 0 && (
+              <div className="flex items-center justify-between border-t pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Previous</span>
+                </Button>
+                <span className="text-xs sm:text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <span className="hidden sm:inline">Next</span> <ChevronRight className="h-4 w-4 sm:ml-2" />
+                </Button>
+              </div>
+            )}
+
           </div>
         )}
       </main>
 
-      {/* ADDED: Animated Scroll Indicator */}
-      {showScrollIndicator && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex flex-col items-center animate-bounce text-muted-foreground/80 transition-opacity duration-300">
-          <span className="text-[10px] uppercase tracking-widest mb-1 font-medium">Scroll</span>
-          <ChevronDown className="h-6 w-6" />
+      {/* MASS ACTIONS FLOATING BAR - RESPONSIVE */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[95%] sm:w-[90%] max-w-2xl animate-in slide-in-from-bottom-10 fade-in">
+          <ElectricBorder className="rounded-xl bg-card text-card-foreground shadow-2xl">
+             <div className="flex items-center justify-between p-3 sm:p-4 bg-card rounded-xl border">
+                <div className="flex items-center gap-2 sm:gap-4">
+                   <Badge variant="secondary" className="px-2 sm:px-3 py-1 text-xs sm:text-sm">
+                      {selectedIds.size} <span className="hidden sm:inline ml-1">Selected</span>
+                   </Badge>
+                   <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-xs h-8 px-2">
+                     Clear
+                   </Button>
+                </div>
+                <div className="flex items-center gap-1 sm:gap-2">
+                   <Button 
+                      size="sm" 
+                      variant="destructive" 
+                      onClick={() => performMassAction('delete')}
+                      className="gap-1 px-2 sm:px-4"
+                      title="Delete Selected"
+                   >
+                      <Trash2 className="h-4 w-4" /> 
+                      <span className="hidden sm:inline ml-1">Delete</span>
+                   </Button>
+                   <div className="h-4 w-[1px] bg-border mx-1"></div>
+                   <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => performMassAction('draft')}
+                      className="gap-1 px-2 sm:px-4"
+                      title="Revert to Draft"
+                   >
+                      <FileEdit className="h-4 w-4" /> 
+                      <span className="hidden sm:inline ml-1">To Draft</span>
+                   </Button>
+                   <Button 
+                      size="sm" 
+                      onClick={() => performMassAction('publish')}
+                      className="gap-1 px-2 sm:px-4"
+                      title="Publish Selected"
+                   >
+                      <UploadCloud className="h-4 w-4" /> 
+                      <span className="hidden sm:inline ml-1">Publish</span>
+                   </Button>
+                </div>
+             </div>
+          </ElectricBorder>
         </div>
       )}
     </div>

@@ -20,8 +20,11 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { Settings } from "lucide-react";
 import React from "react";
 
-import useCategories from "@/hooks/useCategories"; // hook from above
+import useCategories from "@/hooks/useCategories";
 import { Category } from "@/lib/api";
+
+// Define the valid blog types
+export type BlogType = "normal" | "editors pick" | "hero section" | "featured story";
 
 interface BlogSettingsDialogProps {
   authorName: string;
@@ -30,10 +33,13 @@ interface BlogSettingsDialogProps {
   setAuthorAvatar: (value: string) => void;
   authorAffiliation: string;
   setAuthorAffiliation: (value: string) => void;
-  category: Category | null; // allow null initially
+  category: Category | null;
   setCategory: (value: Category | null) => void;
   featureImageUrl: string;
   setFeatureImageUrl: (value: string) => void;
+  // ADDED: Props for Blog Type
+  blogType: BlogType;
+  setBlogType: (value: BlogType) => void;
 }
 
 export function BlogSettingsDialog({
@@ -47,14 +53,15 @@ export function BlogSettingsDialog({
   setCategory,
   featureImageUrl,
   setFeatureImageUrl,
+  // ADDED: Destructure new props
+  blogType,
+  setBlogType,
 }: BlogSettingsDialogProps) {
   const { categories, isLoading } = useCategories();
 
-  // If you want to auto-select the current category when categories load:
   React.useEffect(() => {
     if (!category && !isLoading && categories.length > 0) {
-      // optional: set first category as default (or don't auto-set)
-      // setCategory(categories[0]);
+      // optional auto-select logic
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, isLoading]);
@@ -74,6 +81,7 @@ export function BlogSettingsDialog({
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+          {/* Left Column: Text Fields & Selects */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Author Name</Label>
@@ -95,8 +103,6 @@ export function BlogSettingsDialog({
 
             <div className="space-y-2">
               <Label>Category</Label>
-
-              {/* Disable select while categories loading */}
               <Select
                 value={category?.slug ?? ""}
                 onValueChange={(slug) => {
@@ -105,19 +111,19 @@ export function BlogSettingsDialog({
                 }}
               >
                 <SelectTrigger>
-                  {/* Show placeholder when no category is selected */}
-                  <SelectValue placeholder={isLoading ? "Loading categories..." : "Select category"} />
+                  <SelectValue
+                    placeholder={
+                      isLoading ? "Loading categories..." : "Select category"
+                    }
+                  />
                 </SelectTrigger>
-
                 <SelectContent>
-                  {/* optional loading item */}
                   {isLoading ? (
-                    <SelectItem value="">
+                    <SelectItem value="loading" disabled>
                       Loading...
                     </SelectItem>
                   ) : (
                     <>
-                      <SelectItem value="all">All Categories</SelectItem>
                       {categories.map((cat) => (
                         <SelectItem key={cat.slug} value={cat.slug}>
                           {cat.name}
@@ -128,8 +134,31 @@ export function BlogSettingsDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* ADDED: Blog Type Selector */}
+            <div className="space-y-2">
+              <Label>Article Type & Visibility</Label>
+              <Select
+                value={blogType}
+                onValueChange={(val) => setBlogType(val as BlogType)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Standard Article</SelectItem>
+                  <SelectItem value="featured story">Featured (Highlight)</SelectItem>
+                  <SelectItem value="editors pick">Editor's Pick</SelectItem>
+                  <SelectItem value="hero section">Hero (Homepage Top)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[0.8rem] text-muted-foreground">
+                Determines where this article is displayed on the home page.
+              </p>
+            </div>
           </div>
 
+          {/* Right Column: Image Uploaders */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Author Avatar</Label>

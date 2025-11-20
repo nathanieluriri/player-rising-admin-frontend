@@ -128,7 +128,7 @@ export const adminApi = {
 
 // Blog APIs
 export const blogApi = {
-  list: async (start = 0, stop = 100) => {
+  list: async ({start , stop} ) => {
     const response = await api.get(`/v1/blogs/?start=${start}&stop=${stop}`);
     return response.data;
   },
@@ -160,7 +160,7 @@ export const mediaApi = {
     const formData = new FormData();
     formData.append("file", file);
     
-    const response = await api.post("/v1/media/upload-image", formData, {
+    const response = await api.post("/v1/media/upload-media", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
