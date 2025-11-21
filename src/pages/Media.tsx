@@ -311,8 +311,8 @@ export default function MediaDashboard() {
                             <SelectValue placeholder="Category" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Cats</SelectItem>
-                            {categories.map(c => <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>)}
+                            <SelectItem value="all">All Categories</SelectItem>
+                            {categories.map(c => <SelectItem key={c.slug} value={c.name}>{c.name}</SelectItem>)}
                         </SelectContent>
                    </Select>
                 </div>
