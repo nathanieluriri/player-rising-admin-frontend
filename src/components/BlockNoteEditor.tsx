@@ -49,8 +49,9 @@ export function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorPro
         editor={editor}
         theme="light"
         slashMenu                     // 👈 enables "/" insert menu
-        formattingToolbar
-        filePanel={false} // disable file panel temporarily    
+        formattingToolbar={true}
+        className="p-0 m-0"
+        
         />
    
   );

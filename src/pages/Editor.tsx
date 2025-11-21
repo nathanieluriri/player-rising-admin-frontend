@@ -17,7 +17,8 @@ import {
   MoreVertical, 
   Image as ImageIcon, 
   Settings,
-  Send
+  Send,
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +27,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 
 import useCategories from "@/hooks/useCategories";
@@ -61,12 +63,8 @@ export default function Editor() {
   const [hasLoadedContent, setHasLoadedContent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // ... [Keep your existing LocalStorage Logic here exactly as is] ...
-  // For brevity, I am omitting the localStorage helper functions and useEffects 
-  // assuming you keep them exactly the same as your previous code.
-  
   // -----------------------------------------------------------------------
-  // PASTE YOUR LOCAL STORAGE & LOADING USEEFFECTS HERE (No changes needed)
+  // LOCAL STORAGE LOGIC
   // -----------------------------------------------------------------------
   const getLocalStorageKey = useCallback(
     (aid?: string | null) => `blog_draft_${aid || articleId || (isNew ? "new" : "unknown")}`,
@@ -234,108 +232,172 @@ export default function Editor() {
   };
 
   // Helper for status icons
-  const StatusIndicator = () => {
-    if (saveStatus === "saving") return <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />;
-    if (saveStatus === "error") return <AlertCircle className="w-4 h-4 text-red-500" />;
-    return <Check className="w-4 h-4 text-green-500" />;
+  const StatusIndicator = ({ className }: { className?: string }) => {
+    if (saveStatus === "saving") return <Loader2 className={`animate-spin text-muted-foreground ${className || "w-4 h-4"}`} />;
+    if (saveStatus === "error") return <AlertCircle className={`text-red-500 ${className || "w-4 h-4"}`} />;
+    return <Check className={`text-green-500 ${className || "w-4 h-4"}`} />;
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* HEADER: Mobile Friendly */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container max-w-5xl mx-auto h-14 px-4 flex items-center justify-between">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
+      {/* HEADER: Sticky & Glassmorphic */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
+        <div className="container max-w-5xl mx-auto h-16 px-4 flex items-center justify-between">
           
           {/* Left: Back & Status */}
-          <div className="flex items-center gap-2 md:gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/admin")} className="-ml-2">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/admin")} className="h-10 w-10 -ml-2">
               <ArrowLeft className="w-5 h-5" />
             </Button>
             
-            {/* Minimal status for mobile */}
-            <div className="flex items-center text-xs text-muted-foreground">
-              <StatusIndicator />
-              <span className="ml-1.5 hidden sm:inline">
-                {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Error'}
-              </span>
+            <div className="flex flex-col">
+                <span className="text-sm font-medium text-foreground hidden sm:inline-block">
+                   {status === 'draft' ? 'Draft' : 'Published'}
+                </span>
+                <div className="flex items-center gap-1.5">
+                    <StatusIndicator className="w-3 h-3" />
+                    <span className="text-xs text-muted-foreground">
+                    {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Error'}
+                    </span>
+                </div>
             </div>
           </div>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2">
+          {/* Right: Desktop Actions (Hidden on Mobile) */}
+          <div className="hidden md:flex items-center gap-2">
+            <MediaUploaderModal 
+              onUploadSuccess={() => window.location.reload()} 
+              mediaId={articleId} 
+              label="Add Media"
+              variant="ghost"
+            />
             
-            {/* DESKTOP VIEW (Hidden on Mobile) */}
-            <div className="hidden md:flex items-center gap-2">
-              <MediaUploaderModal 
-                onUploadSuccess={() => window.location.reload()} 
-                mediaId={articleId} 
-                label="Add Media"
-                variant="ghost"
-              />
-              
-              <BlogSettingsDialog
-                authorName={authorName}
-                setAuthorName={setAuthorName}
-                authorAvatar={authorAvatar}
-                setAuthorAvatar={setAuthorAvatar}
-                authorAffiliation={authorAffiliation}
-                setAuthorAffiliation={setAuthorAffiliation}
-                category={category ?? (categories[0] ?? null)}
-                setCategory={(c) => setCategory(c)}
-                featureImageUrl={featureImageUrl}
-                setFeatureImageUrl={setFeatureImageUrl}
-                blogType={blogType}
-                setBlogType={setBlogType}
-              />
+            <BlogSettingsDialog
+              authorName={authorName}
+              setAuthorName={setAuthorName}
+              authorAvatar={authorAvatar}
+              setAuthorAvatar={setAuthorAvatar}
+              authorAffiliation={authorAffiliation}
+              setAuthorAffiliation={setAuthorAffiliation}
+              category={category ?? (categories[0] ?? null)}
+              setCategory={(c) => setCategory(c)}
+              featureImageUrl={featureImageUrl}
+              setFeatureImageUrl={setFeatureImageUrl}
+              blogType={blogType}
+              setBlogType={setBlogType}
+            />
 
-              <div className="w-px h-4 bg-border mx-1" />
+            <div className="w-px h-6 bg-border mx-2" />
 
-              {status === "draft" ? (
-                <Button size="sm" onClick={handlePublish} className="gap-2">
-                   <Send className="w-3.5 h-3.5" /> Publish
-                </Button>
-              ) : (
-                <Button size="sm" variant="secondary" onClick={handleUnpublish}>
-                  Unpublish
-                </Button>
-              )}
-            </div>
+            {status === "draft" ? (
+              <Button onClick={handlePublish} className="gap-2 px-6">
+                 Publish <Send className="w-4 h-4" /> 
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={handleUnpublish}>
+                Unpublish
+              </Button>
+            )}
+          </div>
 
-            {/* MOBILE VIEW (Visible on small screens) */}
-            <div className="flex md:hidden items-center gap-1">
-              {/* Primary Action: Publish (Icon Only) */}
-              {status === "draft" && (
-                 <Button variant="ghost" size="icon" onClick={handlePublish} className="text-primary">
-                    <Send className="w-5 h-5" />
+          {/* Mobile Actions: Minimal (Publish Icon Only) */}
+          <div className="flex md:hidden items-center gap-1">
+            {status === "draft" && (
+                 <Button size="sm" onClick={handlePublish} className="bg-primary text-primary-foreground h-9 px-4 text-xs font-medium rounded-full">
+                    Publish
                  </Button>
-              )}
+            )}
+             {/* Note: Settings & Media moved to Bottom Bar for Mobile */}
+          </div>
+        </div>
+      </header>
 
-              {/* "More" Menu for Settings/Media */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreVertical className="w-5 h-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {/* Note: DialogTriggers inside DropdownItems need preventDefault to work properly */}
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <div className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
-                       {/* Render Modal Trigger directly but styled like a menu item */}
-                       <MediaUploaderModal 
-                          onUploadSuccess={() => window.location.reload()} 
-                          mediaId={articleId} 
-                          label="Add Media"
-                          variant="ghost"
-                          
-                          
-                       />
-                    </div>
-                  </DropdownMenuItem>
-                  
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <div className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
-                      <BlogSettingsDialog
+      {/* Editor Content Area */}
+      <main className="container max-w-4xl mx-auto px-4 py-6 sm:py-12">
+        <div className="space-y-6">
+          
+          {/* Title Input - Refined for Readability */}
+          <div className="relative group px-14">
+            <Input
+            placeholder="Article Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="
+              text-3xl sm:text-4xl md:text-5xl 
+              font-extrabold tracking-tight leading-tight
+              border-none px-0 shadow-none
+              focus-visible:ring-0 
+              bg-transparent
+              placeholder:text-muted-foreground/30
+              h-auto py-2
+              w-full
+            "
+            />
+            {/* Optional: Add a subtle divider line that appears on focus or hover could go here */}
+          </div>
+
+          {/* Author / Category Meta Snippet (Visual enhancement) */}
+          <div className="flex px-14 items-center gap-3 text-sm text-muted-foreground pb-2">
+             {category && <Badge variant="secondary" className="rounded-sm font-normal">{category.name}</Badge>}
+             {authorName && <span>by {authorName}</span>}
+          </div>
+
+          {/* Editor Wrapper */}
+          <div className="min-h-[50vh] animate-in fade-in duration-500">
+            {hasLoadedContent || isNew ? (
+              // Negative margin adjustment for mobile to feel native
+              <div className="not-prose -mx-4 sm:mx-0"> 
+                <BlockNoteEditor
+                  key={articleId || "new"}
+                  initialContent={blogBlocks}
+                  onChange={(editorBlocks: BlockNoteDocument) => {
+                    setBlogBlocks(editorBlocks);
+                  }}
+                  // You can add specific theme override props here if your BlockNote component supports them
+                />
+              </div>
+            ) : isLoading ? (
+              <div className="h-[50vh] flex flex-col items-center justify-center text-muted-foreground gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+                <p className="text-sm">Loading editor...</p>
+              </div>
+            ) : (
+              <div className="h-[50vh] flex flex-col items-center justify-center text-muted-foreground gap-3">
+                <FileText className="h-10 w-10 opacity-20" />
+                <p>Ready to write</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* MOBILE BOTTOM BAR: Productivity & Settings */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background/95 backdrop-blur border-t border-border z-50 px-6 flex items-center justify-between safe-area-bottom">
+        
+        {/* Media Trigger */}
+        <MediaUploaderModal 
+            onUploadSuccess={() => window.location.reload()} 
+            mediaId={articleId} 
+            label="" // Empty label for icon-only
+            variant="ghost"
+           
+        />
+
+        {/* Center: Word Count or Status (Optional placeholder) */}
+        <div className="text-xs text-muted-foreground font-medium">
+           {saveStatus === "saving" ? "Saving..." : "Synced"}
+        </div>
+
+        {/* Settings Trigger */}
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full">
+                    <Settings className="w-6 h-6" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 mb-4">
+                <div className="p-2">
+                    <BlogSettingsDialog
                         authorName={authorName}
                         setAuthorName={setAuthorName}
                         authorAvatar={authorAvatar}
@@ -348,75 +410,17 @@ export default function Editor() {
                         setFeatureImageUrl={setFeatureImageUrl}
                         blogType={blogType}
                         setBlogType={setBlogType}
-                        // You might need to adjust your BlogSettingsDialog trigger to accept className/variant props 
-                        // to blend in perfectly, or just wrap it like this.
-                      />
-                    </div>
-                  </DropdownMenuItem>
-
-                  {status === "published" && (
-                    <>
-                      <DropdownMenuItem onClick={handleUnpublish} className="text-destructive focus:text-destructive">
+                    />
+                </div>
+                <DropdownMenuSeparator />
+                {status === "published" && (
+                    <DropdownMenuItem onClick={handleUnpublish} className="text-destructive p-3 cursor-pointer">
                         Unpublish Article
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-          </div>
-        </div>
-      </header>
-
-      {/* Editor Content Area */}
-      <main className="container max-w-5xl mx-auto px-4 py-6 sm:py-10">
-        <div className="space-y-4 sm:space-y-6">
-          
-          {/* Title Input - Adjusted for Mobile */}
-          <div className="px-14">
-            <Input
-            placeholder="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="
-              text-3xl sm:text-4xl md:text-5xl 
-              font-bold tracking-tight 
-            
-              border-none px-0 shadow-none
-              focus-visible:ring-0 
-              placeholder:text-muted-foreground/40
-              text-left /* Medium style: Left align title */
-              h-auto py-2
-              
-            "
-          />
-          </div>
-
-          <div className="max-w-none min-h-[50vh]">
-            {hasLoadedContent || isNew ? (
-              <div className="not-prose -mx-4 sm:mx-0"> 
-                {/* Negative margin on mobile to let editor touch edges if desired */}
-                <BlockNoteEditor
-                  key={articleId || "new"}
-                  initialContent={blogBlocks}
-                  onChange={(editorBlocks: BlockNoteDocument) => {
-                    setBlogBlocks(editorBlocks);
-                  }}
-                />
-              </div>
-            ) : isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center py-12">
-                <p className="text-muted-foreground">No content yet</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
+                    </DropdownMenuItem>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }
