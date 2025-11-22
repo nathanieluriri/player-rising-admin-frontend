@@ -1,19 +1,22 @@
-# --- Base image with Bun ---
-FROM oven/bun:1 AS base
+# Use official Bun image
+FROM oven/bun:1
 
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY bun.lockb package*.json ./
+# Copy package files
+COPY package.json bun.lock ./
 
-# Install dependencies using Bun
+# Install dependencies
 RUN bun install
 
-# Copy the rest of your project
+# Copy the rest of the project
 COPY . .
 
-# Vite default port
+# Build Vite project (optimized production build)
+RUN bun run build
+
+# Expose a custom port (change 5173 if you want)
 EXPOSE 5173
 
-# Run Vite with bun dev
-CMD ["bun", "dev", "--host"]
+# Start Vite preview server for production
+CMD ["bun", "run", "preview", "--port", "5173", "--host"]
