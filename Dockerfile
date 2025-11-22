@@ -19,4 +19,4 @@ RUN bun run build
 EXPOSE 5173
 
 # Start Vite preview server for production
-CMD ["bun", "run", "preview", "--port", "5173", "--host"]
+CMD ["bun", "run", "preview", "--port", "5173", "--host", "0.0.0.0"]
