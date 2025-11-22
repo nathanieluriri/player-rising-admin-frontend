@@ -15,7 +15,7 @@ COPY . .
 # Build Vite project (optimized production build)
 RUN bun run build
 
-# Expose a custom port (change 5173 if you want)
+# Expose port 5173 inside container
 EXPOSE 5173
 
 # Start Vite preview server for production
