@@ -1,19 +1,30 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ImageUploader } from "@/components/ImageUploader";
 import { Settings } from "lucide-react";
+import React from "react";
 
-const CATEGORIES = [
-  { name: "Juventus", slug: "juventus" },
-  { name: "Manchester United", slug: "manchester-united" },
-  { name: "Manchester City", slug: "manchester-city" },
-  { name: "Arsenal", slug: "arsenal" },
-  { name: "Chelsea", slug: "chelsea" },
-  { name: "Liverpool", slug: "liverpool" },
-];
+// ✅ FIX 1: Import CategoryItem from the hook (where we defined the single item shape)
+// We do NOT import 'Category' from "@/lib/api" because that is the full response object.
+import useCategories, { CategoryItem } from "@/hooks/useCategories";
+
+// Define the valid blog types
+export type BlogType = "normal" | "editors pick" | "hero section" | "featured story";
 
 interface BlogSettingsDialogProps {
   authorName: string;
@@ -22,10 +33,15 @@ interface BlogSettingsDialogProps {
   setAuthorAvatar: (value: string) => void;
   authorAffiliation: string;
   setAuthorAffiliation: (value: string) => void;
-  category: { name: string; slug: string };
-  setCategory: (value: { name: string; slug: string }) => void;
+  
+  // ✅ FIX 2: Update these types to CategoryItem
+  category: CategoryItem | null;
+  setCategory: (value: CategoryItem | null) => void;
+  
   featureImageUrl: string;
   setFeatureImageUrl: (value: string) => void;
+  blogType: BlogType;
+  setBlogType: (value: BlogType) => void;
 }
 
 export function BlogSettingsDialog({
@@ -39,7 +55,19 @@ export function BlogSettingsDialog({
   setCategory,
   featureImageUrl,
   setFeatureImageUrl,
+  blogType,
+  setBlogType,
 }: BlogSettingsDialogProps) {
+  const { categories, isLoading } = useCategories();
+
+  React.useEffect(() => {
+    // Optional: Auto-select first category if none is selected and lists are loaded
+    if (!category && !isLoading && categories.length > 0) {
+       // setCategory(categories[0]); // Uncomment if you want auto-select behavior
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories, isLoading]);
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -48,12 +76,14 @@ export function BlogSettingsDialog({
           Settings
         </Button>
       </DialogTrigger>
+
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Blog Settings</DialogTitle>
         </DialogHeader>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+          {/* Left Column: Text Fields & Selects */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Author Name</Label>
@@ -63,7 +93,7 @@ export function BlogSettingsDialog({
                 placeholder="John Doe"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label>Author Affiliation</Label>
               <Input
@@ -76,26 +106,62 @@ export function BlogSettingsDialog({
             <div className="space-y-2">
               <Label>Category</Label>
               <Select
-                value={category.slug}
+                // ✅ FIX 3: Safe access to slug
+                value={category?.slug ?? ""}
                 onValueChange={(slug) => {
-                  const cat = CATEGORIES.find(c => c.slug === slug);
-                  if (cat) setCategory(cat);
+                  // ✅ FIX 4: Find the correct CategoryItem object
+                  const found = categories.find((c) => c.slug === slug) ?? null;
+                  setCategory(found);
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue
+                    placeholder={
+                      isLoading ? "Loading categories..." : "Select category"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat.slug} value={cat.slug}>
-                      {cat.name}
+                  {isLoading ? (
+                    <SelectItem value="loading" disabled>
+                      Loading...
                     </SelectItem>
-                  ))}
+                  ) : (
+                    <>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.slug} value={cat.slug}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label>Article Type & Visibility</Label>
+              <Select
+                value={blogType}
+                onValueChange={(val) => setBlogType(val as BlogType)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Standard Article</SelectItem>
+                  <SelectItem value="featured story">Featured (Highlight)</SelectItem>
+                  <SelectItem value="editors pick">Editor's Pick</SelectItem>
+                  <SelectItem value="hero section">Hero (Homepage Top)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[0.8rem] text-muted-foreground">
+                Determines where this article is displayed on the home page.
+              </p>
+            </div>
           </div>
 
+          {/* Right Column: Image Uploaders */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Author Avatar</Label>
@@ -120,5 +186,3 @@ export function BlogSettingsDialog({
     </Dialog>
   );
 }
-
-export { CATEGORIES };

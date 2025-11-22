@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { AlertCircle } from "lucide-react";
-
+import ElectricBorder from "@/components/ElectricBorder";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,9 +71,11 @@ export default function Login() {
                 required
               />
             </div>
+            <ElectricBorder>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
+            </ElectricBorder>
           </form>
         </CardContent>
       </Card>
