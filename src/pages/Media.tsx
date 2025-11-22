@@ -456,62 +456,69 @@ export default function MediaDashboard() {
             </main>
 
             {/* --- FLOATING UPLOAD BUTTON --- */}
-            {selectedIds.size === 0 && (
-                <div className="fixed z-50 bottom-6 right-6 animate-in fade-in zoom-in duration-300">
-                    <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-                        <DialogTrigger asChild>
-                            <ElectricBorder className="rounded-full shadow-lg hover:shadow-xl cursor-pointer">
-                                <Button className="rounded-full h-12 sm:h-14 px-4 sm:px-6 flex items-center gap-2">
-                                    <UploadCloud className="h-5 w-5" />
-                                    <span className="font-semibold text-sm sm:text-base">Upload Media</span>
-                                </Button>
-                            </ElectricBorder>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Upload File</DialogTitle>
-                                <DialogDescription>Select an image or video (max 10MB).</DialogDescription>
-                            </DialogHeader>
-                            
-                            {/* Upload UI */}
-                            <div 
-                                className="mt-4 border-2 border-dashed rounded-xl h-32 flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,video/*" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-                                {uploadFile ? (
-                                    <div className="text-center">
-                                        <CheckSquare className="h-8 w-8 text-primary mx-auto mb-2" />
-                                        <p className="text-sm font-medium">{uploadFile.name}</p>
-                                    </div>
-                                ) : (
-                                    <div className="text-center text-muted-foreground">
-                                        <UploadCloud className="h-8 w-8 mx-auto mb-2" />
-                                        <p className="text-sm">Tap to select</p>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="space-y-2 mt-4">
-                                <Label>Category</Label>
-                                <Select value={uploadCategory} onValueChange={setUploadCategory}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="general">General</SelectItem>
-                                    {categories.map(c => <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>)}
-                                </SelectContent>
-                                </Select>
-                            </div>
+{selectedIds.size === 0 && (
+    <div className="fixed z-50 bottom-6 right-6 animate-in fade-in zoom-in duration-300">
+        <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+            
+            {/* FIX APPLIED: 
+               1. Removed <DialogTrigger> 
+               2. Added onClick={() => setIsUploadOpen(true)} to the Button 
+            */}
+            <ElectricBorder className="rounded-full shadow-lg hover:shadow-xl cursor-pointer">
+                <Button 
+                    className="rounded-full h-12 sm:h-14 px-4 sm:px-6 flex items-center gap-2"
+                    onClick={() => setIsUploadOpen(true)}
+                >
+                    <UploadCloud className="h-5 w-5" />
+                    <span className="font-semibold text-sm sm:text-base">Upload Media</span>
+                </Button>
+            </ElectricBorder>
 
-                            <DialogFooter className="mt-4">
-                                <Button onClick={handleUpload} disabled={!uploadFile || isUploading}>
-                                    {isUploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Upload
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Upload File</DialogTitle>
+                    <DialogDescription>Select an image or video (max 300MB).</DialogDescription>
+                </DialogHeader>
+                
+                {/* Upload UI */}
+                <div 
+                    className="mt-4 border-2 border-dashed rounded-xl h-32 flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*,video/*" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
+                    {uploadFile ? (
+                        <div className="text-center">
+                            <CheckSquare className="h-8 w-8 text-primary mx-auto mb-2" />
+                            <p className="text-sm font-medium">{uploadFile.name}</p>
+                        </div>
+                    ) : (
+                        <div className="text-center text-muted-foreground">
+                            <UploadCloud className="h-8 w-8 mx-auto mb-2" />
+                            <p className="text-sm">Tap to select</p>
+                        </div>
+                    )}
                 </div>
-            )}
+                
+                <div className="space-y-2 mt-4">
+                    <Label>Category</Label>
+                    <Select value={uploadCategory} onValueChange={setUploadCategory}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        
+                        {categories.map(c => <SelectItem key={c.slug} value={c.name}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                    </Select>
+                </div>
+
+                <DialogFooter className="mt-4">
+                    <Button onClick={handleUpload} disabled={!uploadFile || isUploading}>
+                        {isUploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Upload
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </div>
+)}
 
             {/* --- Floating Action Bar (For Selection) --- */}
             {selectedIds.size > 0 && (
