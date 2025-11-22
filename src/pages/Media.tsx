@@ -21,7 +21,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-// ✅ ALERT DIALOG IMPORTS ADDED
 import {
     AlertDialog,
     AlertDialogAction,
@@ -34,28 +33,23 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { ContentManagementMediaApi, fetchCategories, Category } from "@/lib/api";
+import { ContentManagementMediaApi, fetchCategories, CategoryItem } from "@/lib/api";
 import {
     LogOut,
     Trash2,
     Search,
-    Image as ImageIcon,
     Film,
     CheckSquare,
     Square,
-    ChevronLeft,
-    ChevronRight,
     UploadCloud,
     LayoutGrid,
     List as ListIcon,
     Copy,
     Loader2,
-    X,
     Filter,
     FileText,
-    PlusCircle,
     AlertTriangle,
-    ExternalLink, // ✅ Added for link opening
+    ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -70,14 +64,14 @@ interface MediaItem {
     url: string;
     name: string;
     mediaType: "video" | "image";
-    category: Category | string;
+    category: CategoryItem | string;
     date: number;
 }
 
 export default function MediaDashboard() {
     // --- Core State ---
     const [media, setMedia] = useState<MediaItem[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
+    const [categories, setCategories] = useState<CategoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
     // --- Pagination State (Server Side) ---
@@ -101,7 +95,7 @@ export default function MediaDashboard() {
     const [uploadCategory, setUploadCategory] = useState("general");
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // ✅ CONFIRMATION DIALOG STATE
+    // --- Dialog State ---
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmConfig, setConfirmConfig] = useState<{
         title: string;
@@ -117,22 +111,22 @@ export default function MediaDashboard() {
         confirmText: "Continue"
     });
 
-    const { logout, admin } = useAuth();
+    const { logout } = useAuth();
     const navigate = useNavigate();
 
     // --- 1. Data Loading ---
 
     useEffect(() => {
         fetchCategories()
-            .then((data) => setCategories(data || []))
+            .then((data) => {
+                // @ts-ignore 
+                const list = Array.isArray(data) ? data : (data?.listOfCategories || []);
+                setCategories(list);
+            })
             .catch((err) => console.error("Cat load fail", err));
     }, []);
 
-    useEffect(() => {
-        loadMediaChunk();
-    }, [page, itemsPerPage]);
-
-    const loadMediaChunk = async () => {
+    const loadMediaChunk = useCallback(async () => {
         setIsLoading(true);
         try {
             const start = (page - 1) * itemsPerPage;
@@ -157,7 +151,11 @@ export default function MediaDashboard() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page, itemsPerPage]);
+
+    useEffect(() => {
+        loadMediaChunk();
+    }, [loadMediaChunk]);
 
     // --- 2. Derived State (Filtering) ---
 
@@ -173,15 +171,27 @@ export default function MediaDashboard() {
             if (filterType !== "all" && item.mediaType !== filterType) return false;
 
             // 3. Category
+            // ✅ FIX: Map Name to Slug if needed
             if (filterCategory !== "all") {
-                const catSlug = typeof item.category === 'object' ? item.category?.slug : item.category;
-                const safeSlug = catSlug || "uncategorized"; 
-                if (safeSlug !== filterCategory) return false;
+                let itemSlug = "uncategorized";
+
+                if (typeof item.category === 'object' && item.category !== null) {
+                    // Case A: It's an object, use the slug directly
+                    itemSlug = item.category.slug;
+                } else if (typeof item.category === 'string') {
+                    // Case B: It's a string (Name). We must find the corresponding slug.
+                    // We look through the 'categories' array to find the slug for this name.
+                    const foundCat = categories.find(c => c.name === item.category);
+                    itemSlug = foundCat ? foundCat.slug : item.category; 
+                    // Fallback: if lookup fails, assume the string might have been a slug
+                }
+                
+                if (itemSlug !== filterCategory) return false;
             }
 
             return true;
         });
-    }, [media, searchQuery, filterType, filterCategory]);
+    }, [media, searchQuery, filterType, filterCategory, categories]); // ✅ Added categories to dependency array
 
     // --- 3. Selection Logic ---
 
@@ -213,7 +223,6 @@ export default function MediaDashboard() {
 
     // --- 4. Actions ---
 
-    // ✅ Helper to trigger custom dialog
     const triggerConfirm = (
         title: string, 
         description: React.ReactNode, 
@@ -233,8 +242,8 @@ export default function MediaDashboard() {
             toast.success("Uploaded successfully");
             setIsUploadOpen(false);
             setUploadFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = ""; 
             setPage(1);
-            loadMediaChunk();
         } catch (e) {
             toast.error("Upload failed");
         } finally {
@@ -243,7 +252,6 @@ export default function MediaDashboard() {
     };
 
     const handleDelete = async (idsToDelete: string[]) => {
-        // ❌ Replaced native confirm with Shadcn Trigger
         triggerConfirm(
             "Confirm Deletion",
             <span>Are you sure you want to <strong> delete {idsToDelete.length}</strong> file(s)? This action cannot be undone.</span>,
@@ -275,7 +283,7 @@ export default function MediaDashboard() {
         toast.success("URL Copied");
     };
 
-    const getCategoryName = (cat: Category | string) => {
+    const getCategoryName = (cat: CategoryItem | string) => {
         if (typeof cat === 'object' && cat !== null) return cat.name;
         return cat || "Uncategorized";
     };
@@ -291,13 +299,12 @@ export default function MediaDashboard() {
                             <BlurText text="Media Library" />
                         </h1>
                         
-                        {/* Navigation Toggles */}
                         <nav className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg overflow-x-auto">
                             <Button 
                                 variant="ghost" 
                                 size="sm" 
                                 className="gap-2 text-muted-foreground hover:text-foreground text-xs sm:text-sm px-2 sm:px-4" 
-                                onClick={() => navigate('/admin/')} // Assuming this is the path to articles
+                                onClick={() => navigate('/admin/')}
                             >
                                 <FileText className="h-3 w-3 sm:h-4 sm:w-4" /> Articles
                             </Button>
@@ -326,7 +333,6 @@ export default function MediaDashboard() {
 
                 {/* --- Toolbar --- */}
                 <div className="flex flex-col gap-4">
-                    {/* Search Bar (Full width on mobile) */}
                     <div className="relative w-full">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input 
@@ -337,12 +343,10 @@ export default function MediaDashboard() {
                         />
                     </div>
 
-                    {/* Bottom Row: Filters & View Mode */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-2 rounded-lg border">
                         <div className="flex flex-wrap items-center gap-2 flex-1">
                             <Filter className="h-4 w-4 text-muted-foreground mr-1 hidden sm:block" />
                             
-                            {/* Type Filter */}
                             <Select value={filterType} onValueChange={(v: any) => setFilterType(v)}>
                                 <SelectTrigger className="h-8 w-[110px] text-xs">
                                     <SelectValue placeholder="Type" />
@@ -354,19 +358,17 @@ export default function MediaDashboard() {
                                 </SelectContent>
                             </Select>
 
-                            {/* Category Filter */}
                             <Select value={filterCategory} onValueChange={setFilterCategory}>
                                 <SelectTrigger className="h-8 w-[130px] text-xs">
                                     <SelectValue placeholder="Category" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Categories</SelectItem>
-                                    {categories.map(c => <SelectItem key={c.slug} value={c.name}>{c.name}</SelectItem>)}
+                                    {categories.map(c => <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        {/* View Toggle */}
                         <div className="flex border rounded-md overflow-hidden">
                             <button 
                                 onClick={() => setViewMode('grid')}
@@ -453,7 +455,7 @@ export default function MediaDashboard() {
 
             </main>
 
-            {/* --- FLOATING UPLOAD BUTTON (Hidden when selecting) --- */}
+            {/* --- FLOATING UPLOAD BUTTON --- */}
             {selectedIds.size === 0 && (
                 <div className="fixed z-50 bottom-6 right-6 animate-in fade-in zoom-in duration-300">
                     <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
@@ -536,7 +538,7 @@ export default function MediaDashboard() {
                 </div>
             )}
 
-            {/* ✅ SHADCN ALERT DIALOG IMPLEMENTATION */}
+            {/* SHADCN ALERT DIALOG */}
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -566,14 +568,14 @@ export default function MediaDashboard() {
     );
 }
 
-// --- Sub-Components Refactored ---
+// --- Sub-Components ---
 
 function MediaGridItem({ item, isSelected, onToggle, onCopy, categoryName }: any) {
     return (
         <AnimatedContent>
             <Card 
                 className={`group relative aspect-square overflow-hidden cursor-pointer border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-border'}`}
-                onClick={onToggle} // Primary action on click is Selection
+                onClick={onToggle}
             >
                 {/* Image/Video Render */}
                 <div className="w-full h-full bg-secondary/30">
@@ -592,7 +594,7 @@ function MediaGridItem({ item, isSelected, onToggle, onCopy, categoryName }: any
                     )}
                 </div>
 
-                {/* Selection Checkbox (Always Visible if selected, or on hover) */}
+                {/* Selection Checkbox */}
                 <div className={`absolute top-2 left-2 transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     <div className={`rounded bg-background/90 text-primary shadow-sm ${isSelected ? 'block' : ''}`}>
                         {isSelected ? <CheckSquare className="h-6 w-6" /> : <Square className="h-6 w-6 text-muted-foreground" />}
@@ -601,21 +603,17 @@ function MediaGridItem({ item, isSelected, onToggle, onCopy, categoryName }: any
 
                 {/* Hover Actions Overlay */}
                 <div className={`absolute inset-0 bg-black/40 flex items-center justify-center gap-2 transition-opacity duration-200 ${isSelected ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
-                    
-                    {/* Link Button (Desktop Hover) */}
-                    <a 
+                     <a 
                         href={item.url} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()} // Prevent card selection on link click
+                        onClick={(e) => e.stopPropagation()} 
                         className="p-0"
                     >
                         <Button size="icon" variant="secondary" className="rounded-full h-9 w-9">
                             <ExternalLink className="h-4 w-4" />
                         </Button>
                     </a>
-
-                    {/* Copy Button */}
                     <Button size="icon" variant="secondary" className="rounded-full h-9 w-9" onClick={(e) => { e.stopPropagation(); onCopy(); }}>
                         <Copy className="h-4 w-4" />
                     </Button>
@@ -632,7 +630,6 @@ function MediaGridItem({ item, isSelected, onToggle, onCopy, categoryName }: any
 }
 
 function MediaListItem({ item, isSelected, onToggle, onCopy, categoryName }: any) {
-    // The link button is always visible on list view, regardless of mobile/desktop.
     return (
         <AnimatedContent>
             <Card 
@@ -657,23 +654,21 @@ function MediaListItem({ item, isSelected, onToggle, onCopy, categoryName }: any
                     <p className="text-sm font-medium truncate">{item.name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{categoryName}</Badge>
-                        <span className="text-[10px] text-muted-foreground uppercase">{item.mediaType}</span>
+                        <span className="text-sm text-muted-foreground uppercase">{item.mediaType}</span>
                     </div>
                 </div>
 
-                {/* Link Button (Always visible for easy tapping on mobile) */}
-                <a 
+                 <a 
                     href={item.url} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    onClick={(e) => e.stopPropagation()} // Prevent card selection
+                    onClick={(e) => e.stopPropagation()}
                 >
                     <Button variant="ghost" size="icon">
                         <ExternalLink className="h-4 w-4" />
                     </Button>
                 </a>
 
-                {/* Copy Button */}
                 <Button variant="ghost" size="icon" onClick={(e) => {e.stopPropagation(); onCopy()}}>
                     <Copy className="h-4 w-4" />
                 </Button>

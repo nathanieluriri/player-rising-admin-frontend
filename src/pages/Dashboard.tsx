@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react"; // ✅ Added useMemo
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,14 +22,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { blogApi, Category, fetchCategories } from "@/lib/api";
+// Assuming blogApi methods return the raw data object from the response.
+import { blogApi, fetchCategories } from "@/lib/api"; 
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-    PlusCircle, 
-    LogOut, 
-    Edit, 
-    Trash2, 
-    Search, 
+import {
+    PlusCircle,
+    LogOut,
+    Edit,
+    Trash2,
+    Search,
     Film,
     FileText,
     CheckSquare,
@@ -39,7 +40,7 @@ import {
     UploadCloud,
     FileEdit,
     AlertTriangle,
-    ArrowDownWideNarrow, // ✅ Added for sorting icon
+    ArrowDownWideNarrow,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,16 +49,35 @@ import ElectricBorder from "@/components/ElectricBorder";
 import BlurText from "@/components/BlurText";
 
 // --- Types ---
+
+// Type for a single category item (used in the Categories list filter)
+interface CategoryItem {
+    itemIndex: number;
+    name: string;
+    slug: string;
+}
+
+// Type for the full Category List API response (used for populating the filter dropdown)
+interface CategoryData {
+    listOfCategories: CategoryItem[];
+    totalItems: number;
+}
+
+// 💥 CRITICAL FIX: The Blog's category property only contains a single category object.
 interface Blog {
     _id: string;
     title: string;
     state: "draft" | "published";
     author: { name: string };
-    category: Category;
+    // ✅ FIX 1: Blog category is a single item, not a list wrapper
+    category: { 
+        name: string;
+        slug: string;
+    }; 
     dateCreated:number;
     lastUpdated: number;
     excerpt: string;
-    blogType: "normal" | "editors pick" | "hero section" | "featured story"; 
+    blogType: "normal" | "editors pick" | "hero section" | "featured story";
     totalItems: number;
     itemIndex: number;
 }
@@ -65,7 +85,8 @@ interface Blog {
 // --- Component Start ---
 export default function Dashboard() {
     // Data State
-    const [categories, setCategories] = useState<Category[]>([]);
+    const [categories, setCategories] = useState<CategoryData | null>(null);
+    const allCategoryItems = categories?.listOfCategories ?? [];
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [blogs, setBlogs] = useState<Blog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -76,7 +97,7 @@ export default function Dashboard() {
     const [activeTab, setActiveTab] = useState<"all" | "draft" | "published">("all");
     const [selectedType, setSelectedType] = useState<string>("all");
     
-    // ✅ NEW SORT STATE
+    // Sort State
     const [sortCriteria, setSortCriteria] = useState<'updated_desc' | 'updated_asc' | 'created_desc' | 'created_asc'>('updated_desc');
 
     // Pagination State
@@ -86,7 +107,7 @@ export default function Dashboard() {
     // Selection State
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-    // Confirmation Dialog State (Kept from previous refactor)
+    // Confirmation Dialog State (Unchanged)
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmConfig, setConfirmConfig] = useState<{
         title: string;
@@ -105,7 +126,7 @@ export default function Dashboard() {
     const { logout, admin } = useAuth();
     const navigate = useNavigate();
 
-    // --- 1. Data Loading (Unchanged) ---
+    // --- 1. Data Loading ---
     useEffect(() => {
         loadBlogs();
     }, []);
@@ -114,9 +135,10 @@ export default function Dashboard() {
         let mounted = true;
         setCategoriesLoading(true);
         fetchCategories()
-            .then((data) => {
+            .then((data: any) => {
                 if (!mounted) return;
-                setCategories(data ?? []);
+                // ✅ Fix from previous iteration is still valid: Access 'data' property
+                setCategories(data?.data ?? null); 
             })
             .catch((err) => {
                 console.error("Failed to fetch categories", err);
@@ -130,6 +152,7 @@ export default function Dashboard() {
 
     const loadBlogs = async () => {
         try {
+            // Assuming blogApi.list returns the object with the 'data' array
             const response = await blogApi.list({ start: 0, stop: 1000 }); 
             setBlogs(response.data || []);
         } catch (error) {
@@ -149,8 +172,12 @@ export default function Dashboard() {
                 !q ||
                 blog.title.toLowerCase().includes(q) ||
                 blog._id.toLowerCase().includes(q);
+
+            // ✅ CRITICAL FIX 2: Check the single blog.category.slug directly
             const matchesCategory =
-                selectedCategory === "all" || blog.category?.slug === selectedCategory;
+                selectedCategory === "all" ||
+                blog.category?.slug === selectedCategory; 
+            
             const matchesType = 
                 selectedType === "all" || (blog.blogType || "normal") === selectedType;
             const matchesTab = activeTab === "all" || blog.state === activeTab;
@@ -158,10 +185,11 @@ export default function Dashboard() {
         });
 
         // 2. Apply Sorting (on the filtered list)
+        // ✅ FIX 3 (from previous review): Corrected the field check from 'lastUpdated' to 'updated'
         return filtered.sort((a, b) => {
             const [field, direction] = sortCriteria.split('_');
-            const aValue = field === 'lastUpdated' ? a.lastUpdated : a.dateCreated;
-            const bValue = field === 'lastUpdated' ? b.lastUpdated : b.dateCreated;
+            const aValue = field === 'updated' ? a.lastUpdated : a.dateCreated;
+            const bValue = field === 'updated' ? b.lastUpdated : b.dateCreated;
 
             if (aValue === bValue) return 0;
 
@@ -173,19 +201,19 @@ export default function Dashboard() {
         });
     }, [blogs, searchQuery, selectedCategory, selectedType, activeTab, sortCriteria]);
 
-    // Reset page when filters/sort change
+    // Reset page when filters/sort change (Unchanged)
     useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery, selectedCategory, selectedType, activeTab, sortCriteria]);
 
-    // --- 3. Pagination Logic ---
+    // --- 3. Pagination Logic (Unchanged) ---
     const totalPages = Math.ceil(sortedAndFilteredBlogs.length / itemsPerPage);
     const paginatedBlogs = sortedAndFilteredBlogs.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
     );
 
-    // --- 4. Action Handlers (Confirmation Logic Unchanged) ---
+    // --- 4. Action Handlers (Unchanged) ---
     const triggerConfirm = (
         title: string, 
         description: React.ReactNode, 
@@ -238,7 +266,6 @@ export default function Dashboard() {
         }
     };
 
-    // Mass Actions
     const performMassAction = (action: 'delete' | 'publish' | 'draft') => {
         if (selectedIds.size === 0) return;
         
@@ -275,7 +302,7 @@ export default function Dashboard() {
         );
     };
 
-    // --- 5. Render Helpers (Unchanged) ---
+    // --- 5. Render Helpers ---
     const formatDate = (timestamp: number) =>
         new Date(timestamp * 1000).toLocaleDateString("en-US", {
             year: "numeric",
@@ -286,15 +313,17 @@ export default function Dashboard() {
     const renderTypeBadge = (type?: string) => {
         if (!type || type === "normal") return null;
         const styles: Record<string, string> = {
-            hero: "bg-purple-500/15 text-purple-700 hover:bg-purple-500/25 border-purple-200",
-            featured: "bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 border-amber-200",
-            editors_pick: "bg-rose-500/15 text-rose-700 hover:bg-rose-500/25 border-rose-200",
+            'hero section': "bg-purple-500/15 text-purple-700 hover:bg-purple-500/25 border-purple-200",
+            'featured story': "bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 border-amber-200",
+            'editors pick': "bg-rose-500/15 text-rose-700 hover:bg-rose-500/25 border-rose-200",
         };
         const labels: Record<string, string> = {
-            hero: "Hero",
-            featured: "Featured",
-            editors_pick: "Editor's Pick",
+            'hero section': "Hero",
+            'featured story': "Featured",
+            'editors pick': "Editor's Pick",
         };
+        
+        // Use the exact type string for lookup as defined in the interface and used in state.
         return (
             <Badge variant="outline" className={`ml-2 ${styles[type] || ""}`}>
                 {labels[type] || type}
@@ -371,6 +400,7 @@ export default function Dashboard() {
                                                         <span className="font-medium text-foreground/80">{blog.author.name}</span>
                                                         <span>•</span>
                                                         <span className="bg-secondary/50 px-1.5 py-0.5 rounded text-secondary-foreground">
+                                                            {/* ✅ FIX 4: Use the single category name */}
                                                             {blog.category?.name ?? "Uncategorized"}
                                                         </span>
                                                         <span>•</span>
@@ -454,7 +484,7 @@ export default function Dashboard() {
             
             <main className="container mx-auto px-3 sm:px-4 py-6">
                 
-                {/* Create Button - HIDDEN WHEN SELECTING (Unchanged) */}
+                {/* Create Button (Unchanged) */}
                 {selectedIds.size === 0 && (
                     <div className="fixed z-50 bottom-6 right-6 animate-in fade-in zoom-in duration-300">
                         <ElectricBorder className="rounded-full">
@@ -479,7 +509,7 @@ export default function Dashboard() {
                         
                         {/* FILTERS & SORT */}
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
-                            {/* Search */}
+                            {/* Search (Unchanged) */}
                             <div className="md:col-span-5 relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
@@ -491,17 +521,19 @@ export default function Dashboard() {
                             </div>
                             {/* Filters & Sort */}
                             <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                                {/* Category Filter */}
+                                {/* Category Filter (Unchanged, uses allCategoryItems list) */}
                                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                                     <SelectTrigger className="w-full"><SelectValue placeholder="Category" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">All Categories</SelectItem>
-                                        {categories.map((cat) => (
-                                            <SelectItem key={cat.slug} value={cat.slug}>{cat.name}</SelectItem>
+                                        {allCategoryItems.map((cat) => (
+                                            <SelectItem key={cat.slug} value={cat.slug}>
+                                                {cat.name}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                {/* Type Filter */}
+                                {/* Type Filter (Unchanged) */}
                                 <Select value={selectedType} onValueChange={setSelectedType}>
                                     <SelectTrigger className="w-full"><SelectValue placeholder="Type" /></SelectTrigger>
                                     <SelectContent>
@@ -512,7 +544,7 @@ export default function Dashboard() {
                                         <SelectItem value="editors pick">Editor's Pick</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                {/* ✅ SORTING SELECT */}
+                                {/* Sorting Select (Unchanged) */}
                                 <Select value={sortCriteria} onValueChange={(v: any) => setSortCriteria(v)}>
                                     <SelectTrigger className="w-full gap-1">
                                         <ArrowDownWideNarrow className="h-4 w-4 text-muted-foreground" />
@@ -525,7 +557,7 @@ export default function Dashboard() {
                                         <SelectItem value="created_asc">Date Created (Oldest)</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                {/* Items Per Page */}
+                                {/* Items Per Page (Unchanged) */}
                                 <Select 
                                     value={String(itemsPerPage)} 
                                     onValueChange={(v) => setItemsPerPage(Number(v))}
@@ -543,7 +575,7 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        {/* Tabs */}
+                        {/* Tabs (Unchanged) */}
                         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                             <TabsList className="grid w-full grid-cols-3 max-w-md mb-4 sm:mb-6">
                                 <TabsTrigger value="all">All</TabsTrigger>
@@ -562,8 +594,8 @@ export default function Dashboard() {
                             </TabsContent>
                         </Tabs>
 
-                        {/* PAGINATION CONTROLS */}
-                        {sortedAndFilteredBlogs.length > 0 && ( // Use sortedAndFilteredBlogs length for total
+                        {/* PAGINATION CONTROLS (Unchanged) */}
+                        {sortedAndFilteredBlogs.length > 0 && (
                             <div className="flex items-center justify-between border-t pt-4">
                                 <Button
                                     variant="outline"
@@ -591,7 +623,7 @@ export default function Dashboard() {
                 )}
             </main>
 
-            {/* MASS ACTIONS FLOATING BAR - RESPONSIVE (Unchanged) */}
+            {/* MASS ACTIONS FLOATING BAR (Unchanged) */}
             {selectedIds.size > 0 && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[95%] sm:w-[90%] max-w-2xl animate-in slide-in-from-bottom-10 fade-in">
                     <ElectricBorder className="rounded-xl bg-card text-card-foreground shadow-2xl">

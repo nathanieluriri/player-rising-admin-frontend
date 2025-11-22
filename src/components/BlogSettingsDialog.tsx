@@ -1,4 +1,3 @@
-// BlogSettingsDialog.tsx
 import {
   Dialog,
   DialogContent,
@@ -20,8 +19,9 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { Settings } from "lucide-react";
 import React from "react";
 
-import useCategories from "@/hooks/useCategories";
-import { Category } from "@/lib/api";
+// ✅ FIX 1: Import CategoryItem from the hook (where we defined the single item shape)
+// We do NOT import 'Category' from "@/lib/api" because that is the full response object.
+import useCategories, { CategoryItem } from "@/hooks/useCategories";
 
 // Define the valid blog types
 export type BlogType = "normal" | "editors pick" | "hero section" | "featured story";
@@ -33,11 +33,13 @@ interface BlogSettingsDialogProps {
   setAuthorAvatar: (value: string) => void;
   authorAffiliation: string;
   setAuthorAffiliation: (value: string) => void;
-  category: Category | null;
-  setCategory: (value: Category | null) => void;
+  
+  // ✅ FIX 2: Update these types to CategoryItem
+  category: CategoryItem | null;
+  setCategory: (value: CategoryItem | null) => void;
+  
   featureImageUrl: string;
   setFeatureImageUrl: (value: string) => void;
-  // ADDED: Props for Blog Type
   blogType: BlogType;
   setBlogType: (value: BlogType) => void;
 }
@@ -53,15 +55,15 @@ export function BlogSettingsDialog({
   setCategory,
   featureImageUrl,
   setFeatureImageUrl,
-  // ADDED: Destructure new props
   blogType,
   setBlogType,
 }: BlogSettingsDialogProps) {
   const { categories, isLoading } = useCategories();
 
   React.useEffect(() => {
+    // Optional: Auto-select first category if none is selected and lists are loaded
     if (!category && !isLoading && categories.length > 0) {
-      // optional auto-select logic
+       // setCategory(categories[0]); // Uncomment if you want auto-select behavior
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, isLoading]);
@@ -104,8 +106,10 @@ export function BlogSettingsDialog({
             <div className="space-y-2">
               <Label>Category</Label>
               <Select
+                // ✅ FIX 3: Safe access to slug
                 value={category?.slug ?? ""}
                 onValueChange={(slug) => {
+                  // ✅ FIX 4: Find the correct CategoryItem object
                   const found = categories.find((c) => c.slug === slug) ?? null;
                   setCategory(found);
                 }}
@@ -135,7 +139,6 @@ export function BlogSettingsDialog({
               </Select>
             </div>
 
-            {/* ADDED: Blog Type Selector */}
             <div className="space-y-2">
               <Label>Article Type & Visibility</Label>
               <Select

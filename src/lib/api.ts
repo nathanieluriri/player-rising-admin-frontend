@@ -242,10 +242,15 @@ export const ContentManagementMediaApi = {
 };
 
 
-export interface Category {
+export interface CategoryItem {
   name: string;
   slug: string;
 }
+
+export interface Category {
+  listOfCategories: CategoryItem[];
+}
+
 export async function fetchCategories(): Promise<Category[]> {
   const res = await fetch(`${API_BASE_URL}api/v1/articles/content/categories`);
 

@@ -1,19 +1,22 @@
-// src/hooks/useCategories.ts
 import { useEffect, useState } from "react";
-import { Category, fetchCategories } from "@/lib/api";
+// ✅ FIX: Import from api.ts
+import { fetchCategories, CategoryItem } from "@/lib/api";
 
 export default function useCategories() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
+
     fetchCategories()
-      .then((data) => {
+      .then((response: any) => {
         if (!mounted) return;
-        setCategories(data ?? []);
+        // Safety check for the data path
+        const list = response?.data?.listOfCategories ?? [];
+        setCategories(list);
       })
       .catch((err) => {
         if (!mounted) return;
@@ -21,8 +24,7 @@ export default function useCategories() {
         console.error("fetchCategories failed", err);
       })
       .finally(() => {
-        if (!mounted) setIsLoading(false);
-        else setIsLoading(false);
+        if (mounted) setIsLoading(false);
       });
 
     return () => {
@@ -30,5 +32,8 @@ export default function useCategories() {
     };
   }, []);
 
+  // We export CategoryItem here just in case other files try to import it from the hook
+  // but ideally, they should import from @/lib/api
   return { categories, isLoading, error };
 }
+export type { CategoryItem }; // Re-export for convenience if neededs
