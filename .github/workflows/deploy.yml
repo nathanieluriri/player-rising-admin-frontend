@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    environment: phone.pem  
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script: |
-            cd player-rising-backend
+            cd player-rising-admin-frontend
             git pull origin master
             sudo docker compose down
             sudo docker compose up --build -d
