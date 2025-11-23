@@ -46,7 +46,7 @@ import { toast } from "sonner";
 import AnimatedContent from "@/components/AnimatedContent";
 import ElectricBorder from "@/components/ElectricBorder";
 import BlurText from "@/components/BlurText";
-import StadiumSpotlights from "@/components/StadiumSpotlight"; // Import the new background
+import StadiumSpotlights from "@/components/stadiumSpotlight"; // Import the new background
 
 // --- Types (Unchanged) ---
 
