@@ -1,0 +1,26 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: ["master"]   # your deployment branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: phone.pem  
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            cd player-rising-admin-frontend
+            git pull origin master
+            sudo docker compose down
+            sudo docker compose up --build -d

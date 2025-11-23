@@ -470,14 +470,14 @@ export default function Dashboard() {
                                 </Button>
                             </nav>
                         </div>
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <span className="text-xs sm:text-sm text-muted-foreground hidden md:inline-block">
-                                {admin?.full_name}
-                            </span>
-                            <Button variant="ghost" size="icon" onClick={logout} title="Logout">
-                                <LogOut className="h-5 w-5" />
-                            </Button>
-                        </div>
+                        <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="hidden sm:flex mr-2">
+                            {blogs.length} Blogs
+                        </Badge>
+                        <Button variant="ghost" size="icon" onClick={logout} title="Logout">
+                            <LogOut className="h-5 w-5 text-muted-foreground" />
+                        </Button>
+                    </div>
                     </div>
                 </div>
             </header>
