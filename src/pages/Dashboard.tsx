@@ -81,8 +81,8 @@ interface Blog {
 // --- Component Start ---
 export default function Dashboard() {
     // Data State
-    const [categories, setCategories] = useState<CategoryData | null>(null);
-    const allCategoryItems = categories?.listOfCategories ?? [];
+    const [categories, setCategories] = useState<CategoryItem[]>([]);
+    
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [blogs, setBlogs] = useState<Blog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -127,23 +127,16 @@ export default function Dashboard() {
         loadBlogs();
     }, []);
 
-    useEffect(() => {
-        let mounted = true;
-        setCategoriesLoading(true);
+     useEffect(() => {
         fetchCategories()
-            .then((data: any) => {
-                if (!mounted) return;
-                setCategories(data?.data ?? null); 
+            .then((data) => {
+                // @ts-ignore 
+                const list = Array.isArray(data) ? data : (data?.listOfCategories || []);
+                setCategories(list);
             })
-            .catch((err) => {
-                console.error("Failed to fetch categories", err);
-                toast.error("Failed to load categories");
-            })
-            .finally(() => {
-                if (mounted) setCategoriesLoading(false);
-            });
-        return () => { mounted = false; };
+            .catch((err) => console.error("Cat load fail", err));
     }, []);
+
 
     const loadBlogs = async () => {
         try {
@@ -461,7 +454,7 @@ export default function Dashboard() {
                                 <BlurText text="ARTICLE LIBRARY" />
                             </h1>
                             <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-lg overflow-x-auto border border-white/5">
-                                <Button variant="ghost" size="sm" className="gap-2 bg-white text-black hover:bg-neutral-200 text-xs sm:text-sm px-2 sm:px-4 font-bold">
+                                <Button variant="ghost" size="sm" className="gap-2 bg-white text-black  text-xs sm:text-sm px-2 sm:px-4 font-bold">
                                     <FileText className="h-3 w-3 sm:h-4 sm:w-4" /> ARTICLES
                                 </Button>
                                 <Button variant="ghost" size="sm" className="gap-2 text-neutral-400 hover:text-white hover:bg-white/5 text-xs sm:text-sm px-2 sm:px-4 font-bold" onClick={() => navigate('/admin/videos')}>
@@ -527,13 +520,9 @@ export default function Dashboard() {
                                         <SelectValue placeholder="Category" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All Categories</SelectItem>
-                                        {allCategoryItems.map((cat) => (
-                                            <SelectItem key={cat.slug} value={cat.slug}>
-                                                {cat.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
+                                    <SelectItem value="all">All Categories</SelectItem>
+                                    {categories.map(c => <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>)}
+                                </SelectContent>
                                 </Select>
 
                                 {/* Type Filter */}
