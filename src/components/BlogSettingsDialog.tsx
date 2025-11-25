@@ -5,6 +5,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useEffect, useState} from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,14 +20,18 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { Settings } from "lucide-react";
 import React from "react";
 
-// ✅ FIX 1: Import CategoryItem from the hook (where we defined the single item shape)
-// We do NOT import 'Category' from "@/lib/api" because that is the full response object.
+// ✅ FIX 1: Import CategoryItem from the hook
 import useCategories, { CategoryItem } from "@/hooks/useCategories";
+import { fetchCategories } from "@/lib/api";
 
 // Define the valid blog types
 export type BlogType = "normal" | "editors pick" | "hero section" | "featured story";
 
 interface BlogSettingsDialogProps {
+  // ✅ NEW: Add control props to allow parent to open/close this dialog programmatically
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+
   authorName: string;
   setAuthorName: (value: string) => void;
   authorAvatar: string;
@@ -45,6 +50,8 @@ interface BlogSettingsDialogProps {
 }
 
 export function BlogSettingsDialog({
+  open,           // ✅ Destructure new prop
+  onOpenChange,   // ✅ Destructure new prop
   authorName,
   setAuthorName,
   authorAvatar,
@@ -58,18 +65,21 @@ export function BlogSettingsDialog({
   blogType,
   setBlogType,
 }: BlogSettingsDialogProps) {
-  const { categories, isLoading } = useCategories();
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
 
-  React.useEffect(() => {
-    // Optional: Auto-select first category if none is selected and lists are loaded
-    if (!category && !isLoading && categories.length > 0) {
-       // setCategory(categories[0]); // Uncomment if you want auto-select behavior
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories, isLoading]);
+ useEffect(() => {
+        fetchCategories()
+            .then((data) => {
+                // @ts-ignore 
+                const list = Array.isArray(data) ? data : (data?.listOfCategories || []);
+                setCategories(list);
+            })
+            .catch((err) => console.error("Cat load fail", err));
+    }, []);
 
   return (
-    <Dialog>
+    // ✅ Pass the control props to the Root Dialog component
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Settings className="h-4 w-4 mr-2" />
@@ -117,25 +127,14 @@ export function BlogSettingsDialog({
                 <SelectTrigger>
                   <SelectValue
                     placeholder={
-                      isLoading ? "Loading categories..." : "Select category"
+                       "Select category"
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {isLoading ? (
-                    <SelectItem value="loading" disabled>
-                      Loading...
-                    </SelectItem>
-                  ) : (
-                    <>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.slug} value={cat.slug}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </>
-                  )}
-                </SelectContent>
+                                    
+                                    {categories.map(c => <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>)}
+                                </SelectContent>
               </Select>
             </div>
 
