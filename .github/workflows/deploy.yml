@@ -1,26 +1,31 @@
-name: Deploy Frontend
+name: Deploy to Cloudflare
 
 on:
   push:
-    branches: ["master"]   # your deployment branch
+    branches: ["master"]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: phone.pem  
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          port: 22
-          script: |
-            cd player-rising-admin-frontend
-            git pull origin master
-            sudo docker compose down
-            sudo docker compose up --build -d
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - run: bunx tsc -p tsconfig.worker.json
+
+      - run: bun run build
+
+      - name: Apply D1 migrations
+        run: bunx wrangler d1 migrations apply players-rising --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy Worker
+        run: bunx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

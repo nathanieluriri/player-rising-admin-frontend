@@ -1,5 +1,28 @@
 name = "players-rising-admin-frontend"
+main = "worker/index.ts"
 compatibility_date = "2025-11-18"
 
 [assets]
 directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/v1/*", "/api/*", "/videos/*", "/images/*", "/health", "/health-detailed", "/task/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "players-rising"
+database_id = "f1193bed-0d82-475b-8c77-5c597be21dd0"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "players-rising-media"
+
+[observability]
+enabled = true
+
+# Enable once theplayersrising.com uses Cloudflare nameservers:
+# routes = [
+#   { pattern = "api.theplayersrising.com", custom_domain = true },
+#   { pattern = "admin.theplayersrising.com", custom_domain = true },
+# ]
