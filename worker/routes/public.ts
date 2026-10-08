@@ -56,27 +56,19 @@ const listOf = (docs: Record<string, any>[]) => ({
   blogs: docs.map((d, i) => blogSummaryPublic(d, i + 1)),
 });
 
-const TEAM_IMAGE_KEYS = ["strFanart3", "strFanart2", "strFanart1", "strFanart4", "strTeamBadge", "strTeamLogo"];
-
-async function teamImage(name: string): Promise<string | null> {
-  try {
-    const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(name)}`, {
-      cf: { cacheTtl: 86400, cacheEverything: true },
-    });
-    if (!res.ok) return null;
-    const team = ((await res.json()) as { teams?: Record<string, string | null>[] }).teams?.[0];
-    return TEAM_IMAGE_KEYS.map((k) => team?.[k]).find(Boolean) ?? null;
-  } catch {
-    return null;
-  }
-}
+// Club photos hosted in our own R2 bucket; credits are listed in the blog footer.
+const CATEGORY_IMAGES: Record<string, string> = {
+  arsenal: "https://api.theplayersrising.com/images/6ac7ddbe827f6e463a077c1c",
+  "manchester-united": "https://api.theplayersrising.com/images/6ac7db450d277290a3596f25",
+  "olympique-de-marseille": "https://api.theplayersrising.com/images/6ac7db4660c428784c0e4ec7",
+  "napoli-fc": "https://api.theplayersrising.com/images/6ac7db4745d1c76fe34c4583",
+};
 
 export const articles = new Hono<{ Bindings: Env }>();
 
-articles.get("/content/categories", async (c) => {
-  const images = await Promise.all(ACTIVE_CATEGORY_SLUGS.map((s) => teamImage(CATEGORY_NAMES[s])));
+articles.get("/content/categories", (c) => {
   const listOfCategories = ACTIVE_CATEGORY_SLUGS.map((slug, i) => ({
-    imageUrl: images[i],
+    imageUrl: CATEGORY_IMAGES[slug] ?? null,
     itemIndex: i + 1,
     name: CATEGORY_NAMES[slug],
     slug,
