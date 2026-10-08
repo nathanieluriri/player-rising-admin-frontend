@@ -91,7 +91,7 @@ Secrets (set once with `npx wrangler secret put <NAME>`):
 
 - `JWT_SECRET`: signs admin access tokens.
 - `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`: the built-in super admin login.
-- `PUBLIC_BASE_URL` (optional var): base URL used in uploaded file links, for example `https://api.theplayersrising.com`. Defaults to the request origin.
+- `PUBLIC_BASE_URL` (var in `wrangler.toml`): base URL used in uploaded file links.
 
 ## Importing data from the old MongoDB backend
 

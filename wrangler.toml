@@ -1,6 +1,10 @@
 name = "players-rising-admin-frontend"
 main = "worker/index.ts"
 compatibility_date = "2025-11-18"
+routes = [
+  { pattern = "api.theplayersrising.com", custom_domain = true },
+  { pattern = "admin.theplayersrising.com", custom_domain = true },
+]
 
 [assets]
 directory = "./dist"
@@ -21,8 +25,5 @@ bucket_name = "players-rising-media"
 [observability]
 enabled = true
 
-# Enable once theplayersrising.com uses Cloudflare nameservers:
-# routes = [
-#   { pattern = "api.theplayersrising.com", custom_domain = true },
-#   { pattern = "admin.theplayersrising.com", custom_domain = true },
-# ]
+[vars]
+PUBLIC_BASE_URL = "https://api.theplayersrising.com"
