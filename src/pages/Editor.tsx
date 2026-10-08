@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { BlockNoteEditor } from "@/components/BlockNoteEditor";
 import { BlogSettingsDialog, BlogType } from "@/components/BlogSettingsDialog";
-import { blogApi,CategoryItem } from "@/lib/api";
+import { blogApi, CategoryItem } from "@/lib/api";
 import "@blocknote/core/style.css";
 import "@blocknote/react/style.css";
 import { 
@@ -17,12 +17,37 @@ import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 
-// ✅ FIX: Import corrected type
 import useCategories from "@/hooks/useCategories";
 import type { PartialBlock } from "@blocknote/core";
 import { MediaUploaderModal } from "@/components/MediaUploaderWithCaptionComponent";
 
 type BlockNoteDocument = PartialBlock<any>[];
+
+// -----------------------------------------------------------------------
+// HELPER: SAFELY EXTRACT ERROR MESSAGE
+// Prevents "Objects are not valid as a React child" crashes
+// -----------------------------------------------------------------------
+const getErrorMessage = (error: any): string => {
+    if (!error) return "Unknown error occurred";
+    
+    // Check for standard API error response
+    if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        
+        // If it's a string, return it
+        if (typeof detail === "string") return detail;
+        
+        // If it's an array (Pydantic validation errors), join the messages
+        if (Array.isArray(detail)) {
+            return detail.map((err: any) => err.msg || JSON.stringify(err)).join(", ");
+        }
+        
+        // If it's an object, stringify it
+        if (typeof detail === "object") return JSON.stringify(detail);
+    }
+    
+    return error.message || "Failed to save article";
+};
 
 export default function Editor() {
     const { id } = useParams<{ id: string }>();
@@ -38,7 +63,7 @@ export default function Editor() {
     const [authorAvatar, setAuthorAvatar] = useState("");
     const [authorAffiliation, setAuthorAffiliation] = useState("");
     
-    // ✅ FIX: Category state typed to CategoryItem
+    // Category state typed to CategoryItem
     const [category, setCategory] = useState<CategoryItem | null>(null);
     
     const [featureImageUrl, setFeatureImageUrl] = useState("");
@@ -51,6 +76,9 @@ export default function Editor() {
     const [hasLoadedContent, setHasLoadedContent] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [didLoadArticleData, setDidLoadArticleData] = useState(false);
+
+    // State to control Settings Dialog Programmatically
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     // -----------------------------------------------------------------------
     // LOCAL STORAGE LOGIC
@@ -126,7 +154,6 @@ export default function Editor() {
                     setAuthorAvatar(blog.author?.avatarUrl || "");
                     setAuthorAffiliation(blog.author?.affiliation || "");
                     
-                    // ✅ FIX: Set category. We assume blog.category is an object containing at least 'slug'
                     setCategory(blog.category || null);
 
                     setFeatureImageUrl(blog.featureImage?.url || "");
@@ -164,9 +191,21 @@ export default function Editor() {
         return () => { mounted = false; };
     }, [articleId, isNew, getLocalStorageKey, loadFromLocalStorage, didLoadArticleData]);
 
+    // -----------------------------------------------------------------------
+    // AUTO-OPEN SETTINGS FOR NEW ARTICLES
+    // -----------------------------------------------------------------------
+    useEffect(() => {
+        // If it's a new article, initial load is done, and we haven't set a title yet
+        // Pop the settings dialog to encourage filling metadata
+        if (isNew && didLoadArticleData && !isInitialLoad && !title) {
+            // Small delay to ensure UI is stable
+            const timer = setTimeout(() => setIsSettingsOpen(true), 500);
+            return () => clearTimeout(timer);
+        }
+    }, [isNew, didLoadArticleData, isInitialLoad, title]);
 
     // -----------------------------------------------------------------------
-    // ✅ FIX: CATEGORY RECONCILIATION & DEFAULTING
+    // CATEGORY RECONCILIATION & DEFAULTING
     // -----------------------------------------------------------------------
     useEffect(() => {
         if (!didLoadArticleData || categoriesLoading || categories.length === 0) return;
@@ -177,9 +216,7 @@ export default function Editor() {
             return;
         }
 
-        // Case 2: Category exists (from saved data), but we want to ensure 
-        // strict object equality with the list from the hook (using slug as ID).
-        // This ensures Dropdowns highlighting works correctly.
+        // Case 2: Ensure strict object equality
         const matchingCategory = categories.find(c => c.slug === category.slug);
         
         if (matchingCategory && matchingCategory !== category) {
@@ -187,25 +224,25 @@ export default function Editor() {
         }
     }, [didLoadArticleData, categoriesLoading, categories, category]);
 
-
     // Save on unmount
     useEffect(() => {
         return () => { saveToLocalStorage(); };
     }, [saveToLocalStorage]);
 
-
     // -----------------------------------------------------------------------
-    // SAVE FUNCTION
+    // ROBUST SAVE FUNCTION
     // -----------------------------------------------------------------------
     const saveArticle = useCallback(async (overrideStatus?: "draft" | "published", overrideBlogType?: BlogType) => {
         if (isInitialLoad) return;
+        
         saveToLocalStorage();
         setSaveStatus("saving");
 
+        // Construct Payload
         const payload = {
             title,
             author: { name: authorName, avatarUrl: authorAvatar, affiliation: authorAffiliation },
-            category, // Sends the full object { itemIndex, name, slug }
+            category, 
             featureImage: { url: featureImageUrl, altText: title || "Feature image" },
             state: overrideStatus || status,
             currentPageBody: blogBlocks,
@@ -214,9 +251,21 @@ export default function Editor() {
 
         try {
             if (!articleId) {
+                // --- CREATE MODE ---
+                // Pre-validation: Don't attempt create if title is empty to reduce 422s
+                if (!title.trim()) {
+                    setSaveStatus("saved"); // Technically saved to local storage
+                    return; 
+                }
+
                 const response = await blogApi.create({ ...payload, state: "draft" });
+                
+                // SAFETY CHECK: Ensure response structure is valid
+                if (!response || !response.data || !response.data._id) {
+                    throw new Error("Server returned success but missing Article ID.");
+                }
+
                 const savedBlog = response.data;
-                // Note: Using savedBlog._id here. This is the BLOG ID, not category ID.
                 setArticleId(savedBlog._id);
                 
                 // Swap local storage keys
@@ -225,13 +274,14 @@ export default function Editor() {
                 const localDraft = localStorage.getItem(oldKey);
                 if (localDraft) {
                     localStorage.setItem(newKey, localDraft);
-                    localStorage.removeItem(oldKey);
+                    // Don't delete old key until navigation confirms
                 }
 
-                navigate(`/admin/editor/${savedBlog._id}`, { replace: true });
                 toast.success("Article created");
+                navigate(`/admin/editor/${savedBlog._id}`, { replace: true });
                 localStorage.removeItem(`blog_draft_new`);
             } else {
+                // --- UPDATE MODE ---
                 await blogApi.update(articleId, payload);
                 localStorage.removeItem(getLocalStorageKey());
             }
@@ -239,11 +289,14 @@ export default function Editor() {
         } catch (error: any) {
             console.error("Save failed:", error);
             setSaveStatus("error");
-            const msg = error?.response?.data?.detail || "Failed to save";
-            toast.error(msg);
+            
+            // ✅ FIX: Use helper to safely convert object errors to string
+            const safeErrorMessage = getErrorMessage(error);
+            toast.error(safeErrorMessage);
         }
     }, [articleId, title, authorName, authorAvatar, authorAffiliation, category, featureImageUrl, status, blogBlocks, blogType, saveToLocalStorage, isInitialLoad, navigate, getLocalStorageKey]);
 
+    // Debounce save (2 seconds)
     useDebounce(() => { if (!isInitialLoad) saveArticle(); }, 2000, [isInitialLoad, saveArticle]);
 
     const handlePublish = () => {
@@ -292,14 +345,16 @@ export default function Editor() {
                             label="Add Media"
                             variant="ghost"
                         />
+                        {/* ✅ FIX: Pass open/onOpenChange to control dialog programmatically */}
                         <BlogSettingsDialog
+                            open={isSettingsOpen}
+                            onOpenChange={setIsSettingsOpen}
                             authorName={authorName}
                             setAuthorName={setAuthorName}
                             authorAvatar={authorAvatar}
                             setAuthorAvatar={setAuthorAvatar}
                             authorAffiliation={authorAffiliation}
                             setAuthorAffiliation={setAuthorAffiliation}
-                            // ✅ FIX: Safe fallback to first category in list
                             category={category ?? (categories[0] ?? null)}
                             setCategory={setCategory}
                             featureImageUrl={featureImageUrl}
@@ -341,7 +396,6 @@ export default function Editor() {
                     </div>
 
                     <div className="flex px-14 items-center gap-3 text-sm text-muted-foreground pb-2">
-                        {/* ✅ FIX: Render name safely */}
                         {category && <Badge variant="secondary" className="rounded-sm font-normal">{category.name}</Badge>}
                         {authorName && <span>by {authorName}</span>}
                     </div>
@@ -389,6 +443,9 @@ export default function Editor() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-64 mb-4">
                         <div className="p-2">
+                             {/* Passed open/onOpenChange here too if you want the dropdown to trigger the dialog, 
+                                 but usually the dialog trigger is inside. If BlogSettingsDialog renders a Trigger, 
+                                 you can leave open/onOpenChange out here, but keep them in the desktop view. */}
                              <BlogSettingsDialog
                                 authorName={authorName}
                                 setAuthorName={setAuthorName}
