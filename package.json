@@ -8,7 +8,11 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck:worker": "tsc -p tsconfig.worker.json",
+    "dev:worker": "vite build && wrangler dev",
+    "db:migrate": "wrangler d1 migrations apply players-rising --remote",
+    "deploy": "vite build && wrangler deploy"
   },
   "dependencies": {
     "@blocknote/core": "^0.42.0",
@@ -51,6 +55,7 @@
     "@tiptap/react": " 3.10.4",
     "@tiptap/starter-kit": "3.10.4",
     "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -58,6 +63,7 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.24",
     "gsap": "^3.13.0",
+    "hono": "^4.13.13",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "motion": "^12.23.24",
@@ -87,6 +93,7 @@
     "@tiptap/starter-kit": "3.10.4"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261008.1",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
@@ -103,6 +110,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "wrangler": "^4.148.0"
   }
 }

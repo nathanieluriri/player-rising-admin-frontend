@@ -60,14 +60,47 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
+## Architecture
 
-Simply open [Lovable](https://lovable.dev/projects/be269c86-a5e9-4ffe-918f-43b7fb704d8b) and click on Share -> Publish.
+One Cloudflare Worker serves both the admin app and the API:
 
-## Can I connect a custom domain to my Lovable project?
+- `src/`: React admin app, built by Vite into `dist/` and served as static assets.
+- `worker/`: the API (Hono). It handles `/v1/*` (admin), `/api/v1/*` (public articles and media), `/videos/*` and `/images/*` (uploaded files), `/health` and `/task/*`. Every other path falls through to the React app.
+- D1 (`players-rising`) stores admins, tokens, blogs and media records. Schema lives in `migrations/`.
+- R2 (`players-rising-media`) stores uploaded images and videos.
 
-Yes, you can!
+## Local development
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```sh
+bun install
+printf 'JWT_SECRET=dev\nSUPER_ADMIN_EMAIL=admin@example.com\nSUPER_ADMIN_PASSWORD=dev\n' > .dev.vars
+npx wrangler d1 migrations apply players-rising --local
+bun run dev:worker        # app + API on http://localhost:8787
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+`bun run dev` still runs the Vite dev server alone. Set `VITE_API_URL` to point it at a running API.
+
+## Deploy
+
+```sh
+bun run db:migrate        # apply new migrations to the remote D1 database
+bun run deploy            # build the app and deploy the Worker
+```
+
+Secrets (set once with `npx wrangler secret put <NAME>`):
+
+- `JWT_SECRET`: signs admin access tokens.
+- `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`: the built-in super admin login.
+- `PUBLIC_BASE_URL` (var in `wrangler.toml`): base URL used in uploaded file links.
+
+## Importing data from the old MongoDB backend
+
+```sh
+mongoexport --uri "$MONGO_URL" --db "$DB_NAME" -c blogs  --jsonArray -o blogs.json
+mongoexport --uri "$MONGO_URL" --db "$DB_NAME" -c media  --jsonArray -o media.json
+mongoexport --uri "$MONGO_URL" --db "$DB_NAME" -c admins --jsonArray -o admins.json
+node scripts/import-mongo.mjs blogs.json media.json admins.json > import.sql
+npx wrangler d1 execute players-rising --remote --file import.sql
+```
+
+IDs are kept, so existing article links keep working. Imported admins keep their bcrypt passwords, which are upgraded on their next login. Videos that were stored in GridFS have to be uploaded again.
